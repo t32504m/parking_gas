@@ -40,10 +40,21 @@ function residentConfig_() {
  * 呼べるのは、下の一覧の関数（google.script.run から誰でも呼べるもの）と、画面の設定だけ。
  * 管理者の関数は、今までどおり、関数の中で管理者の印（トークン）を確かめる。setup_*・job_* と _ で終わる関数は呼べない。
  */
+var WEB_MAX_BODY = 100000; // 本文の上限（文字）。画面から送るのは多くても数KB
+
 function doPost(e) {
-  var body = null;
-  try { body = JSON.parse(e && e.postData && e.postData.contents || 'null'); } catch (x) { body = null; }
-  return ContentService.createTextOutput(JSON.stringify(webApi_(body))).setMimeType(ContentService.MimeType.JSON);
+  var out;
+  try {
+    var text = e && e.postData && typeof e.postData.contents === 'string' ? e.postData.contents : '';
+    var body = null;
+    if (text.length <= WEB_MAX_BODY) { try { body = JSON.parse(text || 'null'); } catch (x) { body = null; } }
+    out = JSON.stringify(webApi_(body) || { status: 'ERROR', reason: 'SYSTEM', reasonText: REASON_TEXT.SYSTEM });
+  } catch (x) {
+    // どこで失敗しても JSON で返す（GAS の HTML のエラー画面を返すと、外の画面では読めない。D-036）
+    console.error(x && x.stack ? x.stack : x);
+    out = JSON.stringify({ status: 'ERROR', reason: 'SYSTEM', reasonText: REASON_TEXT.SYSTEM });
+  }
+  return ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.JSON);
 }
 function webApi_(body) {
   var fn = body && typeof body.fn === 'string' ? body.fn : '';

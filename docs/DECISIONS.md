@@ -492,3 +492,27 @@
 - **本物の GAS では、まだ確かめていない**：外のページからの `doPost`（スマホの Chrome・Safari を含む）。
 - 試験：`tests/impl/static-resident.test.js`、`tests/impl/static-admin.test.js`（委譲 T-static-admin-1）。
 - 影響する箇所: src/Web.gs, tools/build-static.js, tools/serve-static.js, docs/STATIC_PAGES.md
+
+### D-036 D-035 の doPost・build-static のレビュー（レビュー担当、2026-11-10）
+対象：git 7b9ff7a の src/Web.gs（`doPost`・`webApi_`）、tools/build-static.js、tools/serve-static.js。
+- 直したこと:
+  - **`doPost` は、どこで失敗しても JSON で返す**：今までは、`webApi_` の外（本文を文字にする所など）で例外になると、GAS は HTML のエラー画面を返し、外の画面では「読めない応答」になっていた。try で包み、`{"status":"ERROR","reason":"SYSTEM"}` を返す。
+  - **本文の上限**：100,000文字を超える本文は、読まずに DENIED にする（`WEB_MAX_BODY`。画面から送るのは多くても数KB。大きな本文の JSON.parse で実行時間を使わせない）。`postData.contents` が文字列でないときも DENIED。
+  - **build-static の置き換えが静かに壊れる所**：
+    - 今までは、属性の無い `<script>` だけを数えていた。src の画面に `<script src=…>` などが足されると、その分は遅らせずに先に動き、`App.call` を置き換える前にサーバーを呼んでしまう。属性の付いたものも数えて、2つでなければ止める。
+    - src の画面が `App.call` を通さずに `google.script.run` を直接使うと、外に置いた画面では動かない。`google.script` が Common の1か所だけでなければ止める。
+    - テンプレートの値（`<?= … ?>`）が増えた・減ったとき、`include_` が変わったときは、もともと `replaceOnce` と残りの検査で止まる（そのまま）。
+  - 試験：`tests/impl/dopost-guard.test.js`（2件）。
+- 見て、直さなかったこと（問題なし）:
+  - `webApi_` の引数：`args` が配列でなければ、前の形（`arg`）を1つ目として扱う。足りない分は null、多い分は使わない。どの関数も1つ目・2つ目を、`google.script.run` と同じように中で確かめる（管理者の関数は `adminOf_` で、印がオブジェクトでなければ断る）。一覧の18個は、contract の公開関数（doGet・doPost・job・setup を除く）と同じで、引数の数も合う。
+  - 管理者の関数の強さ：印（トークン）は本文で送り、クッキーは使わない（`credentials: 'omit'`）。ほかのサイトから呼ばれても、印が無ければ動かない（CSRF の心配は無い）。確かめ方は `google.script.run` と同じ。
+  - Date：ContentService は `JSON.stringify` なので、Date は文字列になる（`google.script.run` の null より良い）。今の応答に Date は無い。
+  - 大きな応答：いちばん大きいのは月の予約表と予約の一覧で、数十KB。ContentService の上限より十分小さい。
+  - 外の画面の読込みの失敗：設定（`config`）の読込みは2回まで1.5秒おきにやり直し、だめなら「読み込めませんでした」と相談先を出す。読み込んだ後の呼び出しの失敗は、画面の今までの「通信に失敗」の扱いのまま。
+- 残る心配（本物の GAS で確かめる。REAL_ENV_CHECKLIST 2章へ）:
+  - **デプロイの「アクセスできるユーザー」は「全員」（匿名を含む）にする**。「Google アカウントを持つ全員」にすると、POST はログインの画面へ転送され、CORS で読めず、外の画面は「読み込めませんでした」になる。
+  - **転送**：GAS の doPost は、実行した後で 302 を返し、ブラウザは script.googleusercontent.com の応答を GET で読む（`redirect: 'follow'`）。text/plain の POST は「単純な要求」なので、事前の問合せ（preflight）は起きない。Content-Type を application/json に変えると preflight になり、GAS は OPTIONS に答えないので動かなくなる。build-static の text/plain を変えないこと。
+  - **実行した後の通信の失敗**：302 の後の GET が切れると、サーバーでは処理が済んでいるのに、画面は失敗に見える。登録・取消し・使用禁止は受付要求ID で、変更は「変えた後の状態」を送る形で、送り直しても二重にならない。
+  - **応答の URL**：302 の先の URL（user_content_key 付き）を知っていれば、しばらくは同じ応答を GET で読める。管理者のログインの応答（印）も、その URL で読める。URL はブラウザの中だけで、履歴にも残らないが、通信の中身を検査するプロキシ（会社の網など）のログには残りうる。心配なら、印の有効時間（6時間）を短くする。
+  - **だれでも直接呼べる**：doPost は、curl などで画面を通さずに呼びやすい。`google.script.run` でも呼べたので、守りの強さは変わらないが、住民の大量申込み（PT-C5）や管理者のパスコードの総当たり（5回で15分止まる）を試しやすくなる。住民の受付を開ける前に、依頼者と決める。
+- 影響する箇所: src/Web.gs（`doPost`・`WEB_MAX_BODY`）, tools/build-static.js（`buildPage` の検査）

@@ -123,8 +123,12 @@ function buildPage(kind, { gasUrl, fallback }) {
     html = replaceOnce(html, '<?= layout ?>', "((function () { var l = new URLSearchParams(location.search).get('layout'); return l === 'calendar' || l === 'list' ? l : ''; })())", 'テンプレートの値 layout');
   }
   if (/<\?/.test(html)) throw new Error('置き換えていないテンプレートの式が残っています: ' + html.match(/<\?[^>]*\?>/)[0]);
-  const nScripts = html.split('<script>').length - 1;
-  if (nScripts !== 2) throw new Error(`${page.file} の画面のスクリプトが ${nScripts} 個あります（Common と画面の2つのはず）`);
+  // 属性の付いた <script …> も数える（遅らせずに先に動くと、サーバーの呼び出しを置き換える前に動いてしまう）
+  const nScripts = (html.match(/<script\b/gi) || []).length;
+  if (nScripts !== 2 || html.split('<script>').length - 1 !== 2) throw new Error(`${page.file} の画面のスクリプトが ${nScripts} 個あります（属性の無い <script> が、Common と画面の2つのはず）`);
+  // サーバーの呼び出しは App.call の1か所だけのはず（ほかで google.script を使うと、外に置いた画面では動かない）
+  const nGas = html.split('google.script').length - 1;
+  if (nGas !== 1) throw new Error(`google.script が ${nGas} か所あります（Common の App.call の1か所のはず）。サーバーは App.call で呼んでください`);
   html = html.split('<script>').join('<script type="text/x-deferred">');
   return replaceOnce(html, '</body>', loader(gasUrl, fallback, page) + '</body>', 'body の終わり');
 }
