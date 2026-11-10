@@ -5,7 +5,7 @@
 ## 0. 始める前に確かめること（依頼者）
 
 - QR に入れた URL の形（`/u/数字/`・`/dev` が入っていたか）と、デプロイの画面の `/exec` を、スマホのプライベートとふだんのブラウザで開いた結果。
-- 外のページから GAS の `doPost` を呼べるか（今の `tools/build-resident-static.js` の HTML を Pages に置き、スマホの Chrome・Safari で開く）。**ここが動かなければ A+ は成り立たない。** そのときは、このゴールを止めて検討に戻る。
+- 外のページから GAS の `doPost` を呼べるか（`tools/build-static.js` の HTML を Pages に置き、スマホの Chrome・Safari で開く）。**ここが動かなければ A+ は成り立たない。** そのときは、このゴールを止めて検討に戻る。
 
 ## 1. ゴール（全てコマンドか、決まった手順で判定する）
 
@@ -33,7 +33,7 @@
 | 管理者の関数を `doPost` で通すことの安全 | `google.script.run` で誰でも呼べるのと同じ範囲であること（権限の確認は関数の中）を、レビュー担当が確かめる |
 
 ### G4. 文書
-- `docs/RESIDENT_STATIC.md` を `docs/STATIC_PAGES.md`（2枚の画面）にする。`SETUP.md`・`REAL_TEST_無料アカウント.md`（T03b を管理者にも広げる）・06 の引継ぎ・`DECISIONS.md`（D-035）を直す。
+- `docs/STATIC_PAGES.md`（2枚の画面）にした。`SETUP.md`・`REAL_TEST_無料アカウント.md`（T03b を管理者にも広げる）・06 の引継ぎ・`DECISIONS.md`（D-035）を直す。
 - 実機で確かめる項目（依頼者）を、表にして残す。
 
 ### 完了

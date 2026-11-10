@@ -478,3 +478,17 @@
 - **本物の GAS では、まだ確かめていない**：外のページからの `fetch` で `doPost` が呼べること、応答に CORS の許可が付くこと。確かめるのは依頼者（`docs/RESIDENT_STATIC.md` の 4章）。
 - 試験：`tests/impl/resident-static.test.js`（4件）。
 - 影響する箇所: src/Web.gs, contract/contract.json, tools/build-resident-static.js, tools/serve-resident-static.js, docs/RESIDENT_STATIC.md
+
+### D-035 管理者の画面も GAS の外に置く（A+。依頼者の決定、2026-11-10）
+- 依頼者は、検討（`docs/検討-2026-11-10-置き場所と移行.md`）の案 A+（画面は住民も管理者も外、GAS はデータと処理だけ）を選んだ。ゴールとループは `docs/GOAL-外の画面.md`。
+- `doPost` の中身を `residentApi_` から `webApi_` にした。本文は `{"fn": 名前, "args": [引数, …]}`（前の `{"fn", "arg"}` も受ける）。
+  - 通すのは、住民の4つと `config`、管理者の `api_admin_*` の14個（一覧に書いた名前だけ。`switch` で1つずつ呼ぶので、`constructor` などの名前でほかの関数に届くことは無い）。
+  - 管理者の関数は、今までどおり関数の中で管理者の印（`adminOf_`）を確かめる。`google.script.run` から誰でも呼べる範囲と同じで、守りの強さは変わらない。管理者の確認はメールとパスコード（D-001）で、Google のログインを使っていないので、クッキーを送らなくても動く。
+  - `setup_*`・`job_*`・`testSeed_*`・`_` で終わる関数・`doGet`・`doPost` は `DENIED`。
+- `tools/build-static.js`（`tools/build-resident-static.js` を置き換え）：`dist/static/index.html`（住民）と `dist/static/admin/index.html`（管理者、検索に載せない `noindex`）を作る。
+- `tools/serve-static.js`（`tools/serve-resident-static.js` を置き換え）：手元の確認用。エミュレータの上の `doPost` をそのまま呼ぶ。手元の管理者は `admin@example.com` ／ `local-pass-1234`（手元だけの試験の値）。`.claude/launch.json` の `static-pages`。
+- GAS の画面（`doGet`）は、そのまま残す（試験と、外のページが使えないときの予備）。
+- D-034 の試験（仕様 S-074、侵入 PT-C11〜C14）は「doPost から管理者の関数は動かない」を確かめていた。D-035 で「管理者の関数は、正しい印があるときだけ動く」に変わったので、それぞれの担当が書き直す。
+- **本物の GAS では、まだ確かめていない**：外のページからの `doPost`（スマホの Chrome・Safari を含む）。
+- 試験：`tests/impl/static-resident.test.js`、`tests/impl/static-admin.test.js`（委譲 T-static-admin-1）。
+- 影響する箇所: src/Web.gs, tools/build-static.js, tools/serve-static.js, docs/STATIC_PAGES.md
