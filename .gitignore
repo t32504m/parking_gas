@@ -1,0 +1,12 @@
+node_modules/
+reports/raw/
+reports/sheets/
+reports/screens/
+reports/persona/.drive.json
+dist/
+# 実機の結果（本物のメールアドレスが入る。git に入れない）
+real-test-results/
+# 生成物
+reports/persona/
+reports/spec-sheets/
+reports/history.jsonl

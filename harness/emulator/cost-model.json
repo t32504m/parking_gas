@@ -1,0 +1,25 @@
+{
+  "_note": "実GASでの1操作あたりの推定所要時間(ms)。未校正の仮値。harness/real-gas/FaithfulnessProbe.gs の計測結果で更新すること。ローカルの実時間は速すぎて当てにならないため、この推定値で『シート操作の回数が多すぎる設計』を検出する。",
+  "calibrated": false,
+  "ops": {
+    "ss.open": 150,
+    "ss.active": 50,
+    "ss.meta": 30,
+    "ss.insertSheet": 300,
+    "sh.dims": 40,
+    "sh.get": 70,
+    "sh.set": 100,
+    "sh.append": 120,
+    "sh.find": 120,
+    "sh.clear": 80,
+    "sh.fmt": 60,
+    "lock.acquire": 10,
+    "lock.release": 5,
+    "props": 25,
+    "cache": 10,
+    "mail.send": 400,
+    "default": 10
+  },
+  "clientCallOverheadMs": 700,
+  "_note2": "clientCallOverheadMs は google.script.run 1往復の固定的な待ち時間（仮値）。ProbePage の roundTripMedianMs で校正する。"
+}

@@ -1,0 +1,18 @@
+{
+  "_readme": "npm run serve（本番と同じ設定で手元確認）の初期予約。全て管理者が電話で受けた予約。1コマ2台まで。",
+  "now": "2026-11-09T09:00:00+09:00",
+  "bookings": [
+    { "date": "2026-11-09", "slotId": "S4", "count": 2, "channel": "PHONE" },
+    { "date": "2026-11-10", "slotId": "S2", "count": 1, "channel": "PHONE" },
+    { "date": "2026-11-14", "slotId": "S1", "count": 1, "channel": "PHONE" },
+    { "date": "2026-11-14", "slotId": "S4", "count": 2, "channel": "PHONE" },
+    { "date": "2026-11-15", "slotId": "S1", "count": 2, "channel": "PHONE" },
+    { "date": "2026-11-15", "slotId": "S2", "count": 2, "channel": "PHONE" },
+    { "date": "2026-11-15", "slotId": "S3", "count": 2, "channel": "PHONE" },
+    { "date": "2026-11-15", "slotId": "S4", "count": 2, "channel": "PHONE" },
+    { "date": "2026-11-21", "slotId": "S3", "count": 1, "channel": "COUNTER" },
+    { "date": "2026-11-28", "slotId": "S4", "count": 1, "channel": "PHONE" },
+    { "date": "2026-12-05", "slotId": "S4", "count": 2, "channel": "PHONE" },
+    { "date": "2026-12-24", "slotId": "S4", "count": 1, "channel": "PHONE" }
+  ]
+}

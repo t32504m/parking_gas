@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>body{font-family:sans-serif;margin:12px} textarea{width:100%;height:60vh;font-size:12px}</style>
+</head>
+<body>
+  <p>結果（全部コピーして保存してください）。<?= withMeta ? 'addMetaTag あり' : 'addMetaTag なし（?meta=1 で切替）' ?></p>
+  <textarea id="out">測定中…</textarea>
+  <script>
+    var R = { kind: 'web', url: location.href, withMeta: <?= withMeta ?>, innerWidth: window.innerWidth, results: {} };
+    function done() { document.getElementById('out').value = JSON.stringify(R, null, 2); }
+    R.results.privateVisible = typeof google.script.run.probe_hidden_;
+    google.script.run.withSuccessHandler(function (who) {
+      R.results.whoami = who;
+      google.script.run.withSuccessHandler(function (v) {
+        R.results.returnDate = v;
+        var ts = []; var n = 0;
+        (function loop() {
+          var t0 = Date.now();
+          google.script.run.withSuccessHandler(function () {
+            ts.push(Date.now() - t0); n++;
+            if (n < 5) return loop();
+            ts.sort(function (a, b) { return a - b; });
+            R.results.roundTripMs = ts; R.results.roundTripMedianMs = ts[2];
+            done();
+          }).probe_ping();
+        })();
+      }).withFailureHandler(function (e) { R.results.returnDate = 'failure: ' + e.message; done(); }).probe_returnDate();
+    }).withFailureHandler(function (e) { R.results.whoami = 'failure: ' + e.message; done(); }).probe_whoami();
+  </script>
+</body>
+</html>

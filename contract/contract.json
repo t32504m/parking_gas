@@ -1,0 +1,158 @@
+{
+  "_readme": "ハーネスと実装の約束事。実装AIは ledger の列名対応(columns)と surface を、実装に合わせて更新してよい。ただし変更理由を docs/DECISIONS.md に書くこと。キー名(左辺)は変更しない。",
+  "version": 1,
+  "spaces": [
+    "91",
+    "92",
+    "93"
+  ],
+  "slots": {
+    "S1": {
+      "start": "08:00",
+      "end": "11:00",
+      "endDayOffset": 0,
+      "price": 300
+    },
+    "S2": {
+      "start": "11:00",
+      "end": "14:00",
+      "endDayOffset": 0,
+      "price": 300
+    },
+    "S3": {
+      "start": "14:00",
+      "end": "17:00",
+      "endDayOffset": 0,
+      "price": 300
+    },
+    "S4": {
+      "start": "17:00",
+      "end": "08:00",
+      "endDayOffset": 1,
+      "price": 600
+    }
+  },
+  "timeZone": "Asia/Tokyo",
+  "ledger": {
+    "_readme": "不変条件の検査は、実装のコードを通さずにシートを直接読む。シート名と列名を実装に合わせて対応づけること。日本語の列名でもよい。",
+    "reservations": {
+      "sheet": "予約",
+      "headerRow": 1,
+      "columns": {
+        "reservation_id": "予約番号",
+        "request_id": "受付要求ID",
+        "state": "状態",
+        "channel": "受付経路",
+        "date": "利用日",
+        "slot_id": "コマID",
+        "quantity": "台数",
+        "price_total": "料金合計",
+        "start_at": "開始日時",
+        "end_at": "終了日時",
+        "created_at": "受付日時",
+        "operator": "登録者",
+        "name": "氏名"
+      },
+      "states": {
+        "confirmed": [
+          "確定"
+        ],
+        "cancelled": [
+          "取消済み"
+        ],
+        "rejected": [
+          "不成立"
+        ]
+      }
+    },
+    "allocations": {
+      "sheet": "割当て",
+      "headerRow": 1,
+      "columns": {
+        "reservation_id": "予約番号",
+        "date": "利用日",
+        "slot_id": "コマID",
+        "space_id": "駐車場",
+        "state": "状態"
+      },
+      "activeStates": [
+        "有効"
+      ]
+    },
+    "audit": {
+      "sheet": "操作履歴",
+      "headerRow": 1,
+      "columns": {
+        "action": "操作",
+        "operator": "操作者",
+        "reservation_id": "予約番号",
+        "reason": "理由",
+        "at": "日時"
+      }
+    },
+    "notifications": {
+      "sheet": "通知",
+      "headerRow": 1,
+      "columns": {
+        "reservation_id": "予約番号",
+        "state": "状態",
+        "attempts": "試行回数"
+      },
+      "states": {
+        "sent": [
+          "送信済み"
+        ],
+        "failed": [
+          "再送待ち"
+        ],
+        "pending": [
+          "未送信",
+          "送信中"
+        ],
+        "notRequired": [
+          "不要",
+          "電話連絡",
+          "電話連絡済み"
+        ]
+      }
+    }
+  },
+  "surface": {
+    "_readme": "src/ の最上位関数のうち、名前が _ で終わらないものは全て google.script.run から誰でも呼べる。全て列挙し、権限区分を宣言すること。未宣言の公開関数があると lint が失敗する。区分: public / admin / operator / job",
+    "functions": {
+      "doGet": "public",
+      "doPost": "public",
+      "api_getAvailability": "public",
+      "api_submitReservation": "public",
+      "api_getRequestStatus": "public",
+      "api_lookupReservation": "public",
+      "api_admin_login": "admin",
+      "api_admin_register": "admin",
+      "api_admin_list": "admin",
+      "api_admin_cancel": "admin",
+      "api_admin_change": "admin",
+      "api_admin_callList": "admin",
+      "api_admin_markCalled": "admin",
+      "api_admin_addBlock": "admin",
+      "api_admin_releaseBlock": "admin",
+      "api_admin_blockList": "admin",
+      "api_admin_availability": "admin",
+      "api_admin_week": "admin",
+      "api_admin_monthTable": "admin",
+      "api_admin_exportMonth": "admin",
+      "job_processNotifications": "job",
+      "job_archiveLedger": "job",
+      "setup_run": "operator",
+      "setup_init": "operator"
+    },
+    "auditSheetsWritableOnDenied": [
+      "操作履歴"
+    ]
+  },
+  "ui": {
+    "_readme": "画面の入口。実装に合わせて書き換える。",
+    "userPath": "/exec",
+    "adminPath": "/exec?page=admin",
+    "submitFunctionPattern": "api_submitReservation|api_admin_register"
+  }
+}

@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <?!= include_('Styles') ?>
+</head>
+<body>
+  <header class="bar">
+    <h1><span class="mark" aria-hidden="true">P</span>駐車場の台帳</h1>
+    <div class="row nowrap"><span class="who" id="who"></span><button type="button" class="btn t-calls" id="calls" hidden>電話連絡 <span class="badge zero" id="calls-n">0</span></button><button type="button" class="btn plain only-wide" id="logout" hidden>管理を終える</button></div>
+  </header>
+  <main class="page">
+    <section id="login" hidden></section>
+    <section id="app" hidden>
+      <div class="tools no-print" id="tools">
+        <button type="button" class="btn t-prev" id="prev"><span class="tx">前の週</span></button>
+        <button type="button" class="btn t-this" id="this">今週</button>
+        <button type="button" class="btn t-next" id="next"><span class="tx">次の週</span></button>
+        <h2 id="h-week" class="num t-week"></h2>
+        <form id="sf" class="row t-find" role="search" novalidate>
+          <input class="in" id="q" autocomplete="off" placeholder="名前・部屋・予約番号" aria-label="名前・部屋・予約番号で探す">
+          <button type="submit" class="btn">探す</button>
+        </form>
+        <button type="button" class="btn t-block" id="blocks">使用禁止</button>
+        <button type="button" class="btn t-sheet" id="sheetview" aria-pressed="false">予約表</button>
+        <button type="button" class="btn only-wide t-print" id="print">印刷</button>
+        <button type="button" class="btn plain only-narrow t-out" id="logout2">管理を終える</button>
+      </div>
+      <div class="split" id="split">
+        <section id="board" aria-label="1週間の予約表"></section>
+        <aside class="panel sheet-over" id="panel" hidden aria-live="polite" role="dialog" aria-labelledby="h-panel"></aside>
+      </div>
+    </section>
+  </main>
+
+  <?!= include_('Common') ?>
+  <script>
+  (function () {
+    'use strict';
+    var PANEL_Y = 0;
+    var esc = App.esc, $ = App.$;
+    var TODAY = <?= today ?>;
+    var IDS = ['S1', 'S2', 'S3', 'S4'];
+    var SPACES = ['91', '92', '93'];
+    var REASONS = ['本人から電話', '本人から窓口で', '管理者の判断'];
+    var BLOCK_REASONS = ['管理者が使う', '工事・点検', '行事', 'その他'];
+    var SLOT_LABEL = { S1: 'A 朝', S2: 'B 昼', S3: 'C 午後', S4: 'D 夜' };
+    var A = {
+      token: App.session.get('adminToken'), name: App.session.get('adminName') || '',
+      start: monday(TODAY), avail: {}, resv: [], byId: {}, view: null, ctx: null, cap: SPACES.length, maxQ: 1, blocks: [], blockById: {},
+      mode: 'week', month: TODAY.slice(0, 7), table: null, exported: null, draft: newDraft(),
+    };
+    /** 登録の入力（お名前・部屋番号など）。枠を押し直しても、閉じても、登録できるまで残す（電話口では名前を先に聞くため。D-022） */
+    function newDraft() { return { channel: 'PHONE', form: { name: '', building: '', room: '', phone: '', email: '' } }; }
+
+    function monday(d) { var w = App.dow(d); return App.addDays(d, w === 0 ? -6 : 1 - w); }
+    function surname(n) { return String(n || '').split(/[\s　]+/)[0].slice(0, 5); }
+
+    /** 管理者用の関数を呼ぶ。確認が切れていたら確認画面に戻す */
+    function adminCall(fn) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      return App.call.apply(null, [fn, { token: A.token }].concat(args)).then(function (r) {
+        if (r && r.status === 'DENIED') { logout('もう一度、管理者の確認をしてください'); throw new Error('denied'); }
+        return r;
+      });
+    }
+
+    // ------------------------------------------------------------ 管理者の確認
+    function showLogin(msg) {
+      $('app').hidden = true; $('login').hidden = false; $('logout').hidden = true; $('calls').hidden = true; $('who').textContent = '';
+      $('login').innerHTML = '<div style="max-width: 26rem"><h2 id="h-login">管理者の確認</h2>' + (msg ? App.note('wait', msg, '') : '')
+        + '<form id="lg" novalidate><div class="f"><label for="lg-email">メールアドレス</label><input class="in" id="lg-email" type="email" autocomplete="username"></div>'
+        + '<div class="f"><label for="lg-pass">パスコード</label><input class="in" id="lg-pass" type="password" autocomplete="current-password"></div>'
+        + '<button type="submit" class="btn main wide" id="lg-go">確認して進む</button></form><div id="lg-out"></div></div>';
+      $('lg').onsubmit = function (e) {
+        e.preventDefault();
+        var errs = {};
+        if (!$('lg-email').value.trim()) errs['lg-email'] = 'メールアドレスを入れてください';
+        if (!$('lg-pass').value.trim()) errs['lg-pass'] = 'パスコードを入れてください';
+        if (!App.showErrors($('lg'), errs)) return;
+        $('lg-go').disabled = true; $('lg-out').innerHTML = App.busy('確認しています');
+        App.call('api_admin_login', { email: $('lg-email').value.trim(), secret: $('lg-pass').value.trim() }).then(function (r) {
+          $('lg-go').disabled = false;
+          if (r && r.status === 'OK') {
+            A.token = r.token; A.name = r.name; App.session.set('adminToken', r.token); App.session.set('adminName', r.name);
+            showApp();
+          } else {
+            $('lg-out').innerHTML = r && r.reason === 'LOCKED'
+              ? App.note('ng', 'しばらく確認できません', '（' + (r.reasonText || '15分後に試してください') + '）')
+              : App.note('ng', '確認できませんでした', 'メールアドレスかパスコードが違います。5回続けて間違えると15分止まります。');
+          }
+        }, function () { $('lg-go').disabled = false; $('lg-out').innerHTML = App.note('wait', '通信がつながりませんでした', ''); });
+      };
+    }
+    function logout(msg) {
+      A.token = null; App.session.del('adminToken'); App.session.del('adminName'); A.draft = newDraft();
+      closePanel(true); showLogin(msg);
+    }
+    $('logout').onclick = $('logout2').onclick = function () { logout('管理を終えました'); };
+
+    function showApp() {
+      $('login').hidden = true; $('app').hidden = false; $('logout').hidden = false; $('calls').hidden = false;
+      $('who').textContent = A.name + ' さん';
+      loadWeek(); loadCalls();
+    }
+
+    // ------------------------------------------------------------ 予約表
+    function loadWeek() {
+      if (A.mode === 'month') return loadMonth();
+      var to = App.addDays(A.start, 6);
+      var sh = function (d) { return (+d.slice(5, 7)) + '/' + (+d.slice(8)); };
+      $('h-week').innerHTML = '<span class="only-wide">' + esc(App.md(A.start) + '〜' + (A.start.slice(0, 7) === to.slice(0, 7) ? App.md(to).replace(/^\d+月/, '') : App.md(to))) + '</span><span class="only-narrow">' + esc(sh(A.start) + '〜' + sh(to)) + '</span>';
+      $('board').innerHTML = App.busy('読み込んでいます');
+      return Promise.all([
+        adminCall('api_admin_availability', { from: A.start, to: to }),
+        adminCall('api_admin_list', { from: A.start, to: to }),
+        adminCall('api_admin_blockList', { from: A.start, to: to }),
+      ]).then(function (rs) {
+        A.blocks = rs[2].blocks || [];
+        A.blocks.forEach(function (b) { A.blockById[b.blockId] = b; });
+        A.avail = {};
+        A.cap = rs[0].capacity || SPACES.length; A.maxQ = rs[0].maxQuantity || 1;
+        (rs[0].days || []).forEach(function (d) { A.avail[d.date] = d; });
+        A.resv = (rs[1].reservations || []).filter(function (x) { return x.state === '確定'; });
+        A.resv.forEach(function (x) { A.byId[x.reservationId] = x; });
+        renderBoard();
+      }, function (e) { if (!e || e.message !== 'denied') $('board').innerHTML = App.note('wait', '通信がつながりませんでした', '') + '<button type="button" class="btn main" id="re">もう一度読み込む</button>'; if ($('re')) $('re').onclick = loadWeek; });
+    }
+
+    function at(date, slotId, space) {
+      return A.resv.filter(function (x) { return x.date === date && x.slotId === slotId && x.spaces.indexOf(space) >= 0; })[0];
+    }
+    function slotMeta(date, id) { var d = A.avail[date]; return d && d.slots.filter(function (s) { return s.slotId === id; })[0]; }
+    /** そのコマにあと何台入れられるか（1コマの台数の上限と、使用禁止を考えた数。サーバーが数える） */
+    function room(date, slotId) { var s = slotMeta(date, slotId); return s ? s.remaining : 0; }
+    /** その枠の区画を止めている使用禁止 */
+    function blockAt(date, slotId, space) {
+      return A.blocks.filter(function (b) {
+        return date >= b.from && date <= b.to && (!b.slots.length || b.slots.indexOf(slotId) >= 0) && (!b.spaces.length || b.spaces.indexOf(space) >= 0);
+      })[0];
+    }
+
+    function cellHtml(date, s, space) {
+      var x = at(date, s.slotId, space);
+      var where = App.md(date) + ' ' + App.slotName(s) + ' ' + space + '番';
+      var sel = A.ctx && A.ctx.date === date && A.ctx.slotId === s.slotId && (A.ctx.space === space || (x && A.ctx.rid === x.reservationId));
+      // 過ぎた時間は灰色のまま、登録・取消し・使用禁止の確認はできる（あとから台帳を直すため）
+      var past = s.past ? ' past' : '';
+      if (x) return '<button type="button" class="cell taken' + past + (sel ? ' picked' : '') + '" data-rid="' + esc(x.reservationId) + '" data-date="' + date + '" data-slot="' + s.slotId + '" aria-label="' + esc(where + ' ' + x.name + 'さん') + '">' + esc(surname(x.name)) + '</button>';
+      if (s.closed && !s.past) return '<span class="cell closed" aria-label="' + esc(where + ' 受付時間外') + '"></span>';
+      var bk = blockAt(date, s.slotId, space);
+      if (bk) return '<button type="button" class="cell block' + past + (A.ctx && A.ctx.blockId === bk.blockId ? ' picked' : '') + '" data-block="' + esc(bk.blockId) + '" aria-label="' + esc(where + ' 使用禁止 ' + bk.reason) + '">' + (bk.reason === '管理者が使う' ? '管理者' : '禁止') + '</button>';
+      // 住民の分は上限（2台）に達した。残りの区画は、管理者が使うときだけ押す
+      if (!room(date, s.slotId) && s.past) return '<span class="cell cap past" aria-label="' + esc(where + ' ' + A.cap + '台で満車') + '">満</span>';
+      if (!room(date, s.slotId)) return '<button type="button" class="cell cap" data-use="' + space + '" data-date="' + date + '" data-slot="' + s.slotId + '" aria-label="' + esc(where + ' ' + A.cap + '台で満車') + '">満</button>';
+      return '<button type="button" class="cell add' + past + (sel ? ' picked' : '') + '" data-date="' + date + '" data-slot="' + s.slotId + '" data-space="' + space + '" aria-label="' + esc(where + (s.past ? ' 空き（過ぎた時間）' : ' 空き')) + '"></button>';
+    }
+
+    function renderBoard() {
+      var days = []; for (var i = 0; i < 7; i++) days.push(App.addDays(A.start, i));
+      days = days.filter(function (d) { return A.avail[d]; });
+      if (!days.length) { $('board').innerHTML = ''; return; }
+      var metas = A.avail[days[0]].slots;
+      var wide = window.matchMedia('(min-width: 900px)').matches;
+      var h = [];
+      if (wide) {
+        h.push('<table class="sheet"><colgroup><col style="width: 14%">' + Array(13).join('<col>') + '</colgroup><thead><tr><th rowspan="2" scope="col">日付</th>');
+        metas.forEach(function (s) { h.push('<th colspan="3" class="slotsep" scope="colgroup">' + App.markTag(s.slotId) + esc(s.label) + ' <span class="t" style="display:inline">' + App.slotShort(s.slotId) + '</span></th>'); });
+        h.push('</tr><tr>');
+        metas.forEach(function () { SPACES.forEach(function (sp, j) { h.push('<th scope="col"' + (j === 0 ? ' class="slotsep"' : '') + '><span class="plate">' + sp + '</span></th>'); }); });
+        h.push('</tr></thead><tbody>');
+        days.forEach(function (date) {
+          var dc = App.dayCell(date, TODAY);
+          h.push('<tr' + (date === TODAY ? ' class="today"' : '') + '><th scope="row" class="' + dc.cls + '">' + dc.html + '</th>');
+          A.avail[date].slots.forEach(function (s) { SPACES.forEach(function (sp, j) { h.push('<td' + (j === 0 ? ' class="slotsep"' : '') + '>' + cellHtml(date, s, sp) + '</td>'); }); });
+          h.push('</tr>');
+        });
+        h.push('</tbody></table>');
+      } else {
+        var shown = days.filter(function (d) { return d >= TODAY || A.resv.some(function (x) { return x.date === d; }); });
+        if (!shown.length) shown = days;
+        if (shown.indexOf(A.day) < 0) A.day = shown.indexOf(TODAY) >= 0 ? TODAY : shown[0];
+        h.push('<div class="daytabs" role="group" aria-label="日付">' + shown.map(function (d) {
+          var free = 0; A.avail[d].slots.forEach(function (s) { if (!s.closed) free += room(d, s.slotId); });
+          var w = App.dow(d);
+          return '<button type="button" class="dt' + (w === 0 ? ' sun' : w === 6 ? ' sat' : '') + '" data-day="' + d + '" aria-pressed="' + (d === A.day) + '" aria-label="' + esc(App.md(d) + ' 空き' + free) + '"><span class="d"><b>' + (+d.slice(8)) + '</b><span>' + App.wd(d) + '</span></span><span class="fr">' + (free ? '空き' + free : '満') + '</span></button>';
+        }).join('') + '</div>');
+        [A.day].forEach(function (date) {
+          h.push('<h3 style="margin: 12px 0 4px">' + esc(App.md(date)) + (date === TODAY ? '<span class="today-tag">今日</span>' : '') + '</h3>');
+          h.push('<table class="sheet"><colgroup><col style="width: 26%"><col><col><col></colgroup><thead><tr><th scope="col">時間帯</th>' + SPACES.map(function (sp) { return '<th scope="col"><span class="plate">' + sp + '</span></th>'; }).join('') + '</tr></thead><tbody>');
+          A.avail[date].slots.forEach(function (s) {
+            h.push('<tr><th scope="row" style="font-size:16px; padding: 2px 4px">' + App.markTag(s.slotId) + esc(s.label) + '<span class="t" style="display:block; font-weight:400">' + App.slotShort(s.slotId) + '</span></th>'
+              + SPACES.map(function (sp) { return '<td>' + cellHtml(date, s, sp) + '</td>'; }).join('') + '</tr>');
+          });
+          h.push('</tbody></table>');
+        });
+      }
+      $('board').innerHTML = h.join('');
+      App.on($('board'), 'button[data-day]', function (b) { A.day = b.getAttribute('data-day'); renderBoard(); });
+      App.on($('board'), 'button[data-rid]', function (b) { openDetail(b.getAttribute('data-rid')); });
+      App.on($('board'), 'button[data-space]', function (b) {
+        // 予約の変更中に台帳の空きを押したら、そこを変更先にする
+        if (A.view === 'detail' && A.ctx && A.ctx.step === 'edit') {
+          readEdit(); A.ctx.e = { date: b.getAttribute('data-date'), slotId: b.getAttribute('data-slot'), space: b.getAttribute('data-space') };
+          renderPanel(); return;
+        }
+        openRegister(b.getAttribute('data-date'), b.getAttribute('data-slot'), b.getAttribute('data-space'));
+      });
+      App.on($('board'), 'button[data-block]', function (b) { openBlockDetail(b.getAttribute('data-block')); });
+      App.on($('board'), 'button[data-use]', function (b) { openBlock({ from: b.getAttribute('data-date'), slots: [b.getAttribute('data-slot')], spaces: [b.getAttribute('data-use')], reason: '管理者が使う' }); });
+    }
+
+    var lastWide = window.matchMedia('(min-width: 900px)').matches;
+    window.addEventListener('resize', function () { var w = window.matchMedia('(min-width: 900px)').matches; if (w !== lastWide) { lastWide = w; if (A.mode === 'week') renderBoard(); } });
+
+    function shiftMonth(m, n) { var y = +m.slice(0, 4), mo = +m.slice(5, 7) - 1 + n; y += Math.floor(mo / 12); mo = ((mo % 12) + 12) % 12; return y + '-' + ('0' + (mo + 1)).slice(-2); }
+    $('prev').onclick = function () { if (A.mode === 'month') { A.month = shiftMonth(A.month, -1); A.exported = null; return loadMonth(); } A.start = App.addDays(A.start, -7); A.day = null; loadWeek(); };
+    $('next').onclick = function () { if (A.mode === 'month') { A.month = shiftMonth(A.month, 1); A.exported = null; return loadMonth(); } A.start = App.addDays(A.start, 7); A.day = null; loadWeek(); };
+    $('this').onclick = function () { setMode('week'); A.start = monday(TODAY); A.day = null; loadWeek(); };
+
+    // ------------------------------------------------------------ 予約表（これまでの Excel の「駐車場予約表」と同じ形の、月の表）
+    function setMode(m) {
+      A.mode = m;
+      $('sheetview').setAttribute('aria-pressed', String(m === 'month'));
+      $('app').classList.toggle('month-mode', m === 'month');
+      $('prev').querySelector('.tx').textContent = m === 'month' ? '前の月' : '前の週';
+      $('next').querySelector('.tx').textContent = m === 'month' ? '次の月' : '次の週';
+      $('board').setAttribute('aria-label', m === 'month' ? '月の予約表' : '1週間の予約表');
+    }
+    $('sheetview').onclick = function () {
+      closePanel(true);
+      if (A.mode === 'month') { setMode('week'); loadWeek(); return; }
+      // 見ている週に今日があれば今月、なければその週の月
+      A.month = A.start <= TODAY && App.addDays(A.start, 6) >= TODAY ? TODAY.slice(0, 7) : App.addDays(A.start, 3).slice(0, 7);
+      A.exported = null; setMode('month'); loadMonth();
+    };
+    function loadMonth() {
+      var y = +A.month.slice(0, 4), m = +A.month.slice(5, 7);
+      $('h-week').innerHTML = '<span class="only-wide">' + y + '年' + m + '月の予約表</span><span class="only-narrow">' + y + '年' + m + '月</span>';
+      $('board').innerHTML = App.busy('読み込んでいます');
+      return adminCall('api_admin_monthTable', { month: A.month }).then(function (r) {
+        if (!r || r.status !== 'OK') { $('board').innerHTML = App.note('ng', '予約表を読み込めませんでした', ''); return; }
+        A.table = r; renderMonth();
+      }, function (e) { if (!e || e.message !== 'denied') $('board').innerHTML = App.note('wait', '通信がつながりませんでした', '') + '<button type="button" class="btn main" id="re">もう一度読み込む</button>'; if ($('re')) $('re').onclick = loadMonth; });
+    }
+    function renderMonth() {
+      var t = A.table;
+      var h = ['<div class="row no-print sheet-tools"><button type="button" class="btn" id="export">スプレッドシートに書き出す</button>'
+        + (A.exported ? '<span class="sub" role="status">「' + esc(A.exported.sheetName) + '」に書き出しました <a href="' + esc(A.exported.url) + '" target="_blank" rel="noopener">スプレッドシートを開く</a></span>' : '') + '</div>'];
+      h.push('<div class="xwrap"><table class="xsheet"><caption class="print-only">' + esc(t.title) + '</caption><colgroup><col class="c-date"><col class="c-slot">' + t.spaces.map(function () { return '<col class="c-name"><col class="c-note">'; }).join('') + '</colgroup>');
+      h.push('<thead><tr><th rowspan="2" scope="col" class="h-d">日付</th><th rowspan="2" scope="col" class="h-s">時間帯</th>' + t.spaces.map(function (sp) { return '<th colspan="2" scope="colgroup">駐車場枠' + esc(sp) + '</th>'; }).join('') + '</tr>');
+      h.push('<tr class="h2">' + t.spaces.map(function () { return '<th scope="col">申込者</th><th scope="col" class="note">適用</th>'; }).join('') + '</tr></thead><tbody>');
+      t.rows.forEach(function (r, i) {
+        var first = i % 4 === 0;
+        var w = App.dow(r.date);
+        h.push('<tr class="' + (first ? 'dayhead' : '') + (r.date === TODAY ? ' today' : '') + '">');
+        if (first) h.push('<th rowspan="4" scope="rowgroup" class="d' + (w === 0 ? ' sun' : w === 6 ? ' sat' : '') + '">' + esc(r.dateText) + '<span class="wd">（' + App.wd(r.date) + '）</span></th>');
+        var sl = r.slotText.split('　');
+        h.push('<td class="s"><span class="sl">' + esc(sl[0]) + '</span><span class="tm">　' + esc(sl.slice(1).join('　')) + '</span><span class="tms">' + esc(App.slotShort(r.slotId)) + '</span></td>');
+        r.cells.forEach(function (c) {
+          var cls = c.kind === 'block' ? ' class="blk"' : '';
+          h.push('<td' + cls + '>' + esc(c.name) + (c.note ? '<span class="nn">' + esc(c.note) + '</span>' : '') + '</td><td' + (c.kind === 'block' ? ' class="blk note"' : ' class="note"') + '>' + esc(c.note) + '</td>');
+        });
+        h.push('</tr>');
+      });
+      h.push('</tbody></table></div>');
+      $('board').innerHTML = h.join('');
+      $('export').onclick = function () {
+        var b = $('export'); b.disabled = true;
+        adminCall('api_admin_exportMonth', { month: A.month }).then(function (r) {
+          b.disabled = false;
+          if (r && r.status === 'OK') { A.exported = r; renderMonth(); }
+        }, function () { b.disabled = false; });
+      };
+    }
+    $('print').onclick = function () { window.print(); };
+
+    // ------------------------------------------------------------ 作業の枠
+    function openPanel(view, ctx) {
+      A.view = view; A.ctx = ctx || null;
+      if (!$('split').classList.contains('has-panel')) PANEL_Y = window.scrollY;
+      $('split').classList.add('has-panel'); $('app').classList.add('panel-open'); $('panel').hidden = false;
+      renderBoard(); renderPanel();
+      App.reveal($('h-panel'));
+    }
+    function closePanel(silent) {
+      A.view = null; A.ctx = null;
+      $('panel').hidden = true; $('split').classList.remove('has-panel'); $('app').classList.remove('panel-open');
+      setTimeout(function () { window.scrollTo(0, PANEL_Y || 0); }, 0);
+      if (!silent) renderBoard();
+    }
+    function head(title) { return '<div class="phead"><h2 id="h-panel">' + esc(title) + '</h2><button type="button" class="btn plain" id="close">閉じる</button></div>'; }
+
+    function renderPanel() {
+      var p = $('panel'); var c = A.ctx;
+      if (A.view === 'register') p.innerHTML = registerHtml();
+      else if (A.view === 'detail') p.innerHTML = detailHtml();
+      else if (A.view === 'search') p.innerHTML = head('「' + c.text + '」の予約') + (c.list ? listHtml(c.list) : App.busy('探しています'));
+      else if (A.view === 'calls') p.innerHTML = head('電話連絡') + (c.items ? callsHtml(c.items) : App.busy('読み込んでいます'));
+      else if (A.view === 'block') p.innerHTML = blockHtml();
+      else if (A.view === 'blocks') p.innerHTML = head('使用禁止') + '<button type="button" class="btn main wide" id="b-new">期間を決めて使用禁止にする</button>' + (c.list ? blockListHtml(c.list) : App.busy('読み込んでいます'));
+      else if (A.view === 'blockDetail') p.innerHTML = blockDetailHtml();
+      if ($('close')) $('close').onclick = function () { closePanel(); };
+      bindPanel();
+    }
+
+    // ---- 登録（空き枠から）
+    function openRegister(date, slotId, space) {
+      var s = slotMeta(date, slotId);
+      var free = Math.min(room(date, slotId), A.maxQ);
+      openPanel('register', { date: date, slotId: slotId, space: space, slot: s, free: free, step: 'form', channel: A.draft.channel, quantity: 1,
+        form: A.draft.form, requestId: null });
+    }
+    function registerHtml() {
+      var c = A.ctx; var s = c.slot;
+      var strip = '<div class="pick"><b>' + esc(App.md(c.date)) + '</b><span>' + esc(App.slotLong(c.date, s)) + '</span><span class="plate">' + c.space + '</span></div>';
+      if (c.step === 'form') {
+        var q = []; for (var i = 1; i <= c.free; i++) q.push('<button type="button" class="btn" data-q="' + i + '" aria-pressed="' + (c.quantity === i) + '">' + i + '台</button>');
+        return head('登録') + strip + '<form id="rf" novalidate>'
+          + '<div class="f"><span class="lbl" id="ch-lbl">受付</span><div class="row" role="group" aria-labelledby="ch-lbl"><button type="button" class="btn" data-ch="PHONE" aria-pressed="' + (c.channel === 'PHONE') + '">電話</button><button type="button" class="btn" data-ch="COUNTER" aria-pressed="' + (c.channel === 'COUNTER') + '">窓口</button></div></div>'
+          + (c.free > 1 ? '<div class="f"><span class="lbl" id="rq-lbl">台数</span><div class="row" role="group" aria-labelledby="rq-lbl">' + q.join('') + '</div></div>' : '')
+          + fld('r-name', 'お名前', 'name', 'text', true) + '<div class="two">' + fld('r-building', '棟', 'building', 'text', false, '例：A棟', true) + fld('r-room', '部屋番号', 'room', 'text', true) + '</div>'
+          + fld('r-phone', '電話番号', 'phone', 'tel', true) + fld('r-email', 'メール', 'email', 'email', false)
+          + '<button type="submit" class="btn main wide">確認へ進む</button></form>'
+          + '<button type="button" class="btn plain wide" id="r-block">この枠を使用禁止にする</button>';
+      }
+      if (c.step === 'confirm') {
+        return head('この内容で登録しますか') + strip + App.kv([['受付', c.channel === 'PHONE' ? '電話' : '窓口'], ['台数', c.quantity + '台'], ['料金', App.yen(s.price * c.quantity)],
+          ['お名前', esc(c.form.name)], ['棟・部屋', esc((c.form.building ? c.form.building + ' ' : '') + c.form.room)], ['電話番号', esc(c.form.phone)], ['メール', esc(c.form.email || 'なし')]])
+          + '<div class="row"><button type="button" class="btn main" id="r-send">登録する</button><button type="button" class="btn" id="r-fix">直す</button></div>';
+      }
+      if (c.step === 'sending') return '<h2 id="h-panel">登録</h2>' + App.busy('登録しています');
+      var r = c.result;
+      if (r.status === 'CONFIRMED') {
+        return head('登録しました') + strip + '<div class="ticket"><span>予約番号</span><span class="no">' + esc(r.reservationId) + '</span><span>' + esc(c.form.name) + ' さん</span></div>'
+          + '<p>読み上げ：「予約番号は <b>' + esc(String(r.reservationId).split('').join(' ')) + '</b> です」</p>'
+          + (c.form.email ? '<button type="button" class="btn wide" id="r-done">閉じる</button>'
+            : '<div class="row"><button type="button" class="btn main" id="r-told"' + (c.told ? ' disabled aria-pressed="true"' : '') + '>本人に伝えた</button><button type="button" class="btn" id="r-done">閉じる</button></div>');
+      }
+      if (r.status === 'REJECTED') return head('登録できませんでした') + strip + App.note('ng', r.reasonText || 'この内容では登録できません', '') + '<button type="button" class="btn wide" id="r-done">閉じる</button>';
+      return head('登録できたか分かりません') + strip + App.note('wait', '通信が途中で切れた可能性があります', '') + '<button type="button" class="btn main wide" id="r-send">もう一度登録する</button>';
+    }
+    function fld(id, label, key, type, req, ph, noOpt) {
+      return '<div class="f"><label for="' + id + '">' + label + (req || noOpt ? '' : '<span class="opt">なくても可</span>') + '</label><input class="in" id="' + id + '" type="' + type + '" autocomplete="off"'
+        + (type === 'tel' ? ' inputmode="tel"' : '') + (ph ? ' placeholder="' + esc(ph) + '"' : '') + ' value="' + esc(A.ctx.form[key]) + '"></div>';
+    }
+    function readF() { ['name', 'building', 'room', 'phone', 'email'].forEach(function (k) { var el = $('r-' + k); if (el) A.ctx.form[k] = el.value.trim(); }); }
+    function sendRegister() {
+      var c = A.ctx; if (c.step === 'sending') return;
+      if (!c.requestId) c.requestId = App.newRequestId();
+      var req = { requestId: c.requestId, date: c.date, slotId: c.slotId, quantity: c.quantity, channel: c.channel, preferSpace: c.space,
+        name: c.form.name, building: c.form.building, room: c.form.room, phone: c.form.phone, email: c.form.email, receivedAt: new Date().toISOString() };
+      c.step = 'sending'; renderPanel();
+      adminCall('api_admin_register', req).then(function (r) {
+        c.result = r; c.step = 'result'; renderPanel(); App.reveal($('h-panel'));
+        if (r.status === 'CONFIRMED') { A.draft = newDraft(); loadWeek(); if (c.form.email) loadCalls(); }
+      }, function (e) { if (e && e.message === 'denied') return; c.result = { status: 'NETWORK' }; c.step = 'result'; renderPanel(); });
+    }
+
+    // ---- 予約の詳細と取消し
+    function openDetail(rid) {
+      var x = A.byId[rid]; if (!x) return;
+      openPanel('detail', { rid: rid, date: x.date, slotId: x.slotId, step: 'view', reason: '' });
+    }
+    function detailHtml() {
+      var c = A.ctx; var x = A.byId[c.rid];
+      var plates = x.spaces.map(function (sp) { return '<span class="plate">' + esc(sp) + '</span>'; }).join(' ');
+      var info = App.kv([['利用日', esc(App.md(x.date))], ['時間帯', esc(App.slotMark(x.slotId) + ' ' + x.slotLabel + ' ' + x.timeText)], ['区画', plates || 'なし'], ['台数', x.quantity + '台'],
+        ['棟・部屋', esc((x.building ? x.building + ' ' : '') + x.room)], ['電話番号', esc(x.phone || 'なし')], ['メール', esc(x.email || 'なし')],
+        ['受付', esc(x.channelText)], ['予約番号', '<span class="num">' + esc(x.reservationId) + '</span>'], ['状態', esc(x.state)]]);
+      if (c.step === 'edit') return editHtml(c, x);
+      if (c.step === 'editConfirm') return editConfirmHtml(c, x);
+      if (c.step === 'editSending') return '<h2 id="h-panel">予約の変更</h2>' + App.busy('変更しています');
+      if (c.step === 'changed') return head(x.name + ' さん') + App.note('ok', '変更しました', '') + info + '<button type="button" class="btn wide" id="d-done">閉じる</button>';
+      if (c.step === 'done') return head(x.name + ' さん') + App.note('ok', '取り消しました', '') + App.kv([['取り消した理由', esc(c.reason)]]) + info + '<button type="button" class="btn wide" id="d-done">閉じる</button>';
+      if (c.step === 'cancel') {
+        return head(x.name + ' さん') + info + '<div class="f"><span class="lbl" id="why-lbl">取り消す理由</span><div class="row" role="group" aria-labelledby="why-lbl">'
+          + REASONS.map(function (t) { return '<button type="button" class="btn" data-why="' + t + '" aria-pressed="' + (c.reason === t) + '">' + t + '</button>'; }).join('') + '</div></div>'
+          + '<div class="row"><button type="button" class="btn danger" id="c-go"' + (c.reason ? '' : ' disabled') + '>取り消す</button><button type="button" class="btn" id="c-stop">やめる</button></div><div id="c-out"></div>';
+      }
+      return head(x.name + ' さん') + info + (x.state === '確定' && !x.archived ? '<div class="row"><button type="button" class="btn main" id="e-start">変更する</button><button type="button" class="btn danger" id="c-start">この予約を取り消す</button></div>' : '');
+    }
+
+    // ---- 予約の変更（D-024）。日・時間帯・区画と名前などを直す。PC幅では、台帳の空きを押しても変更先を選べる
+    function startEdit() {
+      var c = A.ctx; var x = A.byId[c.rid];
+      c.e = { date: x.date, slotId: x.slotId, space: x.spaces[0] || '' };
+      c.form = { name: x.name, building: x.building, room: x.room, phone: x.phone, email: x.email };
+      c.err = ''; c.step = 'edit'; renderPanel(); App.reveal($('h-panel'));
+    }
+    function editHtml(c, x) {
+      var e = c.e;
+      return head('予約の変更') + '<form id="ef" novalidate>'
+        + '<div class="f"><label for="e-date">利用日</label><input class="in" id="e-date" type="date" value="' + esc(e.date) + '"></div>'
+        + '<div class="f"><span class="lbl" id="es-lbl">時間帯</span><div class="row pick4" role="group" aria-labelledby="es-lbl">'
+        + IDS.map(function (id) { return '<button type="button" class="btn" data-es="' + id + '" aria-pressed="' + (e.slotId === id) + '">' + esc(SLOT_LABEL[id]) + '</button>'; }).join('') + '</div></div>'
+        + '<div class="f"><span class="lbl" id="esp-lbl">区画</span><div class="row" role="group" aria-labelledby="esp-lbl">'
+        + SPACES.map(function (sp) { return '<button type="button" class="btn" data-esp="' + sp + '" aria-pressed="' + (e.space === sp) + '">' + sp + '番</button>'; }).join('') + '</div></div>'
+        + fld('r-name', 'お名前', 'name', 'text', true) + '<div class="two">' + fld('r-building', '棟', 'building', 'text', false, '例：A棟', true) + fld('r-room', '部屋番号', 'room', 'text', true) + '</div>'
+        + fld('r-phone', '電話番号', 'phone', 'tel', true) + fld('r-email', 'メール', 'email', 'email', false)
+        + '<div id="e-out">' + (c.err ? App.note('ng', '変更できませんでした', c.err) : '') + '</div>'
+        + '<div class="row"><button type="submit" class="btn main">確認へ進む</button><button type="button" class="btn" id="e-stop">やめる</button></div></form>';
+    }
+    function editConfirmHtml(c, x) {
+      var e = c.e; var f = c.form; var rows = [];
+      var when = function (d, id) { return App.md(d) + ' ' + SLOT_LABEL[id] + ' ' + App.slotShort(id); };
+      if (e.date !== x.date || e.slotId !== x.slotId) rows.push(['日と時間帯', esc(when(x.date, x.slotId)) + '<br>→ <b>' + esc(when(e.date, e.slotId)) + '</b>']);
+      if (e.space && x.spaces.indexOf(e.space) < 0) rows.push(['区画', esc(x.spaces.join('・')) + ' → <b>' + esc(e.space) + '</b>']);
+      [['name', 'お名前'], ['building', '棟'], ['room', '部屋番号'], ['phone', '電話番号'], ['email', 'メール']].forEach(function (p) {
+        if ((x[p[0]] || '') !== (f[p[0]] || '')) rows.push([p[1], esc(x[p[0]] || 'なし') + ' → <b>' + esc(f[p[0]] || 'なし') + '</b>']);
+      });
+      if (!rows.length) rows.push(['変更', '変わるところはありません']);
+      return head('この内容に変更しますか') + App.kv(rows)
+        + (c.err ? App.note('wait', '通信が途中で切れた可能性があります', c.err) : '')
+        + '<div class="row"><button type="button" class="btn main" id="e-send">変更する</button><button type="button" class="btn" id="e-fix">直す</button></div>';
+    }
+    function readEdit() { readF(); var d = $('e-date'); if (d) A.ctx.e.date = d.value; }
+    function sendEdit() {
+      var c = A.ctx; var x = A.byId[c.rid]; var e = c.e; var f = c.form;
+      c.step = 'editSending'; renderPanel();
+      adminCall('api_admin_change', { reservationId: x.reservationId, date: e.date, slotId: e.slotId, preferSpace: e.space,
+        name: f.name, building: f.building, room: f.room, phone: f.phone, email: f.email }).then(function (r) {
+        if (r.status === 'CHANGED') {
+          var n = r.reservation; ['date', 'slotId', 'slotLabel', 'timeText', 'spaces', 'name', 'building', 'room', 'phone', 'email'].forEach(function (k) { x[k] = n[k]; });
+          c.err = ''; c.step = 'changed'; renderPanel(); App.reveal($('h-panel')); loadWeek();
+        } else { c.err = r.reasonText || 'この内容では変更できません'; c.step = 'edit'; renderPanel(); App.reveal($('h-panel')); }
+      }, function (er) { if (er && er.message === 'denied') return; c.err = 'もう一度「変更する」を押してください（二重にはなりません）'; c.step = 'editConfirm'; renderPanel(); });
+    }
+    function doCancel() {
+      var c = A.ctx; var x = A.byId[c.rid];
+      $('c-go').disabled = true; $('c-out').innerHTML = App.busy('取り消しています');
+      adminCall('api_admin_cancel', { reservationId: x.reservationId, reason: c.reason, requestId: c.requestId || (c.requestId = App.newRequestId()) }).then(function (r) {
+        if (r.status === 'CANCELLED') { x.state = '取消済み'; c.step = 'done'; renderPanel(); App.reveal($('h-panel')); loadWeek(); }
+        else { $('c-go').disabled = false; $('c-out').innerHTML = App.note('ng', '取り消せませんでした', r.reasonText || ''); }
+      }, function (e) { if (e && e.message === 'denied') return; $('c-go').disabled = false; $('c-out').innerHTML = App.note('wait', '通信がつながりませんでした', ''); });
+    }
+
+    // ---- 検索
+    $('sf').onsubmit = function (e) {
+      e.preventDefault();
+      var text = $('q').value.trim(); if (!text) { $('q').focus(); return; }
+      openPanel('search', { text: text, list: null });
+      adminCall('api_admin_list', { text: text }).then(function (r) {
+        if (A.view !== 'search') return;
+        A.ctx.list = r.reservations || []; A.ctx.list.forEach(function (x) { A.byId[x.reservationId] = x; }); renderPanel();
+      }, function () {});
+    };
+    function listHtml(list) {
+      if (!list.length) return '<p>見つかりませんでした</p>';
+      return '<table class="list"><thead><tr><th>日付・時間帯</th><th>名前</th><th>状態</th></tr></thead><tbody>' + list.map(function (x) {
+        return '<tr><td>' + esc(App.md(x.date)) + '<br>' + esc(App.slotMark(x.slotId) + ' ' + x.slotLabel) + ' ' + (x.spaces.length ? x.spaces.map(function (sp) { return '<span class="plate">' + esc(sp) + '</span>'; }).join(' ') : '') + '</td>'
+          + '<td><button type="button" class="btn plain" data-open="' + esc(x.reservationId) + '">' + esc(x.name) + '</button><br><span class="sub">' + esc((x.building ? x.building + ' ' : '') + x.room) + '</span></td><td>' + esc(x.state) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+    }
+
+    // ---- 電話連絡
+    function loadCalls() {
+      return adminCall('api_admin_callList').then(function (r) {
+        var items = r.items || [];
+        var n = items.filter(function (x) { return !x.contactDone; }).length;
+        $('calls-n').textContent = n; $('calls-n').className = 'badge' + (n ? '' : ' zero');
+        $('calls').setAttribute('aria-label', '電話連絡 未対応 ' + n + '件');
+        return items;
+      }, function () { return null; });
+    }
+    $('calls').onclick = function () {
+      openPanel('calls', { items: null });
+      loadCalls().then(function (items) { if (A.view === 'calls') { A.ctx.items = items || []; renderPanel(); } });
+    };
+    function callsHtml(items) {
+      var todo = items.filter(function (x) { return !x.contactDone; });
+      var done = items.filter(function (x) { return x.contactDone; });
+      var row = function (x, act) {
+        return '<tr><td>' + esc(App.md(x.date)) + '<br>' + esc(App.slotMark(x.slotId) + ' ' + x.slotLabel) + '</td><td>' + esc(x.name) + '<br><span class="num">' + esc(x.phone || 'なし') + '</span><br><span class="sub">' + esc(x.why) + '</span></td><td>'
+          + (act ? '<button type="button" class="btn" data-called="' + esc(x.reservationId) + '">電話した</button>' : '<span class="sub">済</span>') + '</td></tr>';
+      };
+      return '<h3>未対応（' + todo.length + '件）</h3>' + (todo.length ? '<table class="list"><tbody>' + todo.map(function (x) { return row(x, true); }).join('') + '</tbody></table>' : '<p>ありません</p>')
+        + '<h3>対応済み（' + done.length + '件）</h3>' + (done.length ? '<table class="list"><tbody>' + done.map(function (x) { return row(x, false); }).join('') + '</tbody></table>' : '<p>ありません</p>');
+    }
+
+    // ---- 使用禁止（期間×時間帯×駐車場をまとめて止める）
+    function openBlock(o) {
+      o = o || {};
+      openPanel('block', { step: 'form', from: o.from || (A.start > TODAY ? A.start : TODAY), to: o.to || o.from || (A.start > TODAY ? A.start : TODAY),
+        slots: o.slots || IDS.slice(), spaces: o.spaces || SPACES.slice(), reason: o.reason || '工事・点検', memo: '', requestId: null, preview: null, result: null });
+    }
+    function scopeText(slots, spaces) {
+      var t = !slots.length || slots.length === IDS.length ? '終日' : slots.map(function (x) { return SLOT_LABEL[x]; }).join('・');
+      var p = !spaces.length || spaces.length === SPACES.length ? '全ての駐車場' : spaces.map(function (x) { return x + '番'; }).join('・');
+      return { t: t, p: p };
+    }
+    function periodText(from, to) { return from === to ? App.md(from) : App.md(from) + '〜' + App.md(to); }
+    function blockHtml() {
+      var c = A.ctx;
+      if (c.step === 'form') {
+        var tg = function (attr, v, text, on) { return '<button type="button" class="btn" ' + attr + '="' + v + '" aria-pressed="' + on + '">' + text + '</button>'; };
+        return head('使用禁止にする') + '<form id="bf" novalidate>'
+          + '<div class="two dates"><div class="f"><label for="b-from">開始日</label><input class="in" id="b-from" type="date" min="' + TODAY + '" value="' + c.from + '"></div>'
+          + '<div class="f"><label for="b-to">終了日</label><input class="in" id="b-to" type="date" min="' + TODAY + '" value="' + c.to + '"></div></div>'
+          + '<div class="f"><span class="lbl" id="bs-lbl">時間帯</span><div class="row wrap" role="group" aria-labelledby="bs-lbl">'
+          + tg('data-ball', 's', '終日', c.slots.length === IDS.length) + IDS.map(function (x) { return tg('data-bs', x, SLOT_LABEL[x], c.slots.length !== IDS.length && c.slots.indexOf(x) >= 0); }).join('') + '</div></div>'
+          + '<div class="f"><span class="lbl" id="bp-lbl">駐車場</span><div class="row wrap" role="group" aria-labelledby="bp-lbl">'
+          + tg('data-pall', 'p', '全て', c.spaces.length === SPACES.length) + SPACES.map(function (x) { return tg('data-bp', x, x + '番', c.spaces.length !== SPACES.length && c.spaces.indexOf(x) >= 0); }).join('') + '</div></div>'
+          + '<div class="f"><span class="lbl" id="br-lbl">理由</span><div class="row wrap" role="group" aria-labelledby="br-lbl">'
+          + BLOCK_REASONS.map(function (x) { return tg('data-br', x, x, c.reason === x); }).join('') + '</div></div>'
+          + '<div class="f"><label for="b-memo">メモ<span class="opt">なくても可</span></label><input class="in" id="b-memo" autocomplete="off" value="' + esc(c.memo) + '"></div>'
+          + '<button type="submit" class="btn main wide">確認へ進む</button></form><div id="b-out"></div>';
+      }
+      var sc = scopeText(c.slots, c.spaces);
+      var info = App.kv([['期間', esc(periodText(c.from, c.to))], ['時間帯', esc(sc.t)], ['駐車場', esc(sc.p)], ['理由', esc(c.reason)]].concat(c.memo ? [['メモ', esc(c.memo)]] : []));
+      var conf = function (list) {
+        if (!list || !list.length) return '';
+        return '<h3>重なる予約（' + list.length + '件）</h3><table class="list"><tbody>' + list.map(function (x) {
+          return '<tr><td>' + esc(App.md(x.date)) + '<br>' + esc(App.slotMark(x.slotId) + ' ' + x.slotLabel) + ' ' + x.spaces.map(function (sp) { return '<span class="plate">' + esc(sp) + '</span>'; }).join(' ') + '</td>'
+            + '<td><button type="button" class="btn plain" data-open="' + esc(x.reservationId) + '">' + esc(x.name) + '</button><br><span class="num sub">' + esc(x.phone || '') + '</span></td></tr>';
+        }).join('') + '</tbody></table>';
+      };
+      if (c.step === 'confirm') {
+        return head('この内容で使用禁止にしますか') + info + conf(c.preview.conflicts)
+          + '<div class="row"><button type="button" class="btn main" id="b-send">使用禁止にする</button><button type="button" class="btn" id="b-fix">直す</button></div><div id="b-out"></div>';
+      }
+      if (c.step === 'sending') return '<h2 id="h-panel">使用禁止</h2>' + App.busy('登録しています');
+      return head('使用禁止にしました') + info + conf(c.result.conflicts) + '<button type="button" class="btn wide" id="b-done">閉じる</button>';
+    }
+    function readBlockForm() {
+      var c = A.ctx;
+      if ($('b-from')) c.from = $('b-from').value;
+      if ($('b-to')) c.to = $('b-to').value;
+      if ($('b-memo')) c.memo = $('b-memo').value.trim();
+    }
+    function checkBlock() {
+      var c = A.ctx; var e = {};
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(c.from)) e['b-from'] = '開始日を入れてください';
+      else if (c.from < TODAY) e['b-from'] = '過ぎた日は選べません';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(c.to)) e['b-to'] = '終了日を入れてください';
+      else if (c.from && c.to < c.from) e['b-to'] = '開始日より後の日にしてください';
+      return e;
+    }
+    function blockReq(confirm) {
+      var c = A.ctx;
+      if (!c.requestId) c.requestId = App.newRequestId();
+      return { requestId: c.requestId, from: c.from, to: c.to, slots: c.slots, spaces: c.spaces, reason: c.reason, memo: c.memo, confirm: confirm };
+    }
+    function blockListHtml(list) {
+      if (!list.length) return '<p>ありません</p>';
+      return '<table class="list"><tbody>' + list.map(function (b) {
+        var sc = scopeText(b.slots, b.spaces);
+        return '<tr><td><b>' + esc(periodText(b.from, b.to)) + '</b><br>' + esc(sc.t) + ' ' + esc(sc.p) + '<br><span class="sub">' + esc(b.reason + (b.memo ? '（' + b.memo + '）' : '')) + '</span></td>'
+          + '<td><button type="button" class="btn" data-release="' + esc(b.blockId) + '">解除</button></td></tr>';
+      }).join('') + '</tbody></table>';
+    }
+    function openBlocks() {
+      openPanel('blocks', { list: null });
+      adminCall('api_admin_blockList', {}).then(function (r) {
+        if (A.view !== 'blocks') return;
+        A.ctx.list = r.blocks || []; A.ctx.list.forEach(function (b) { A.blockById[b.blockId] = b; }); renderPanel();
+      }, function () {});
+    }
+    $('blocks').onclick = openBlocks;
+    function openBlockDetail(id) { if (A.blockById[id]) openPanel('blockDetail', { blockId: id, step: 'view' }); }
+    function blockDetailHtml() {
+      var c = A.ctx; var b = A.blockById[c.blockId]; var sc = scopeText(b.slots, b.spaces);
+      var info = App.kv([['期間', esc(periodText(b.from, b.to))], ['時間帯', esc(sc.t)], ['駐車場', esc(sc.p)], ['理由', esc(b.reason)]].concat(b.memo ? [['メモ', esc(b.memo)]] : []).concat([['登録', esc(String(b.operator).replace(/\s*<.*>$/, ''))]]));
+      if (c.step === 'done') return head('使用禁止') + App.note('ok', '解除しました', '') + info + '<button type="button" class="btn wide" id="d-done">閉じる</button>';
+      return head('使用禁止') + info + '<button type="button" class="btn danger wide" data-release="' + esc(b.blockId) + '">この使用禁止を解除する</button><div id="b-out"></div>';
+    }
+    function release(id, btn) {
+      btn.disabled = true;
+      adminCall('api_admin_releaseBlock', { blockId: id }).then(function (r) {
+        if (r.status !== 'OK') { btn.disabled = false; return; }
+        if (A.view === 'blockDetail') { A.ctx.step = 'done'; renderPanel(); }
+        else if (A.view === 'blocks') { A.ctx.list = A.ctx.list.filter(function (b) { return b.blockId !== id; }); renderPanel(); }
+        loadWeek();
+      }, function () { btn.disabled = false; });
+    }
+
+    function bindPanel() {
+      var p = $('panel'); var c = A.ctx;
+      if (A.view === 'register') {
+        App.on(p, 'button[data-ch]', function (b) { readF(); c.channel = A.draft.channel = b.getAttribute('data-ch'); renderPanel(); });
+        if ($('rf')) $('rf').oninput = function () { readF(); };
+        App.on(p, 'button[data-q]', function (b) { readF(); c.quantity = +b.getAttribute('data-q'); renderPanel(); });
+        if ($('rf')) $('rf').onsubmit = function (e) {
+          e.preventDefault(); readF();
+          var errs = {};
+          if (!c.form.name) errs['r-name'] = 'お名前を入れてください';
+          if (!c.form.room) errs['r-room'] = '部屋番号を入れてください';
+          if (!c.form.phone) errs['r-phone'] = '電話番号を入れてください';
+          else if (c.form.phone.replace(/[^0-9０-９]/g, '').length < 6) errs['r-phone'] = '電話番号を数字で入れてください';
+          if (c.form.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.form.email)) errs['r-email'] = 'メールの形が違います';
+          if (!App.showErrors($('rf'), errs)) return;
+          c.step = 'confirm'; renderPanel(); App.reveal($('h-panel'));
+        };
+        if ($('r-send')) $('r-send').onclick = sendRegister;
+        if ($('r-block')) $('r-block').onclick = function () { openBlock({ from: c.date, slots: [c.slotId], spaces: [c.space], reason: '管理者が使う' }); };
+        if ($('r-fix')) $('r-fix').onclick = function () { c.step = 'form'; renderPanel(); };
+        if ($('r-done')) $('r-done').onclick = function () { closePanel(); loadCalls(); };
+        if ($('r-told')) $('r-told').onclick = function () {
+          $('r-told').disabled = true;
+          adminCall('api_admin_markCalled', { reservationId: c.result.reservationId }).then(function () { c.told = true; renderPanel(); loadCalls(); }, function () { $('r-told').disabled = false; });
+        };
+      }
+      if (A.view === 'detail') {
+        if ($('c-start')) $('c-start').onclick = function () { c.step = 'cancel'; renderPanel(); };
+        if ($('e-start')) $('e-start').onclick = startEdit;
+        if ($('ef')) {
+          $('ef').oninput = function () { readEdit(); };
+          $('ef').onsubmit = function (ev) {
+            ev.preventDefault(); readEdit();
+            var errs = {};
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(c.e.date)) errs['e-date'] = '利用日を選んでください';
+            if (!c.form.name) errs['r-name'] = 'お名前を入れてください';
+            if (!c.form.room) errs['r-room'] = '部屋番号を入れてください';
+            if (!c.form.phone) errs['r-phone'] = '電話番号を入れてください';
+            else if (c.form.phone.replace(/[^0-9０-９]/g, '').length < 6) errs['r-phone'] = '電話番号を数字で入れてください';
+            if (c.form.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.form.email)) errs['r-email'] = 'メールの形が違います';
+            if (!App.showErrors($('ef'), errs)) return;
+            c.err = ''; c.step = 'editConfirm'; renderPanel(); App.reveal($('h-panel'));
+          };
+        }
+        App.on(p, 'button[data-es]', function (b) { readEdit(); c.e.slotId = b.getAttribute('data-es'); renderPanel(); });
+        App.on(p, 'button[data-esp]', function (b) { readEdit(); c.e.space = b.getAttribute('data-esp'); renderPanel(); });
+        if ($('e-stop')) $('e-stop').onclick = function () { c.step = 'view'; c.err = ''; renderPanel(); };
+        if ($('e-fix')) $('e-fix').onclick = function () { c.step = 'edit'; c.err = ''; renderPanel(); };
+        if ($('e-send')) $('e-send').onclick = sendEdit;
+        App.on(p, 'button[data-why]', function (b) { c.reason = b.getAttribute('data-why'); renderPanel(); $('c-go').focus(); });
+        if ($('c-go')) $('c-go').onclick = doCancel;
+        if ($('c-stop')) $('c-stop').onclick = function () { c.step = 'view'; renderPanel(); };
+        if ($('d-done')) $('d-done').onclick = function () { closePanel(); };
+      }
+      if (A.view === 'block') {
+        var setSel = function (key, all, v) {
+          readBlockForm();
+          if (v === null) c[key] = all.slice();
+          else if (c[key].length === all.length) c[key] = [v];
+          else if (c[key].indexOf(v) >= 0) { c[key] = c[key].filter(function (x) { return x !== v; }); if (!c[key].length) c[key] = all.slice(); }
+          else c[key] = all.filter(function (x) { return c[key].indexOf(x) >= 0 || x === v; });
+          renderPanel();
+        };
+        App.on(p, 'button[data-ball]', function () { setSel('slots', IDS, null); });
+        App.on(p, 'button[data-bs]', function (b) { setSel('slots', IDS, b.getAttribute('data-bs')); });
+        App.on(p, 'button[data-pall]', function () { setSel('spaces', SPACES, null); });
+        App.on(p, 'button[data-bp]', function (b) { setSel('spaces', SPACES, b.getAttribute('data-bp')); });
+        App.on(p, 'button[data-br]', function (b) { readBlockForm(); c.reason = b.getAttribute('data-br'); renderPanel(); });
+        if ($('bf')) $('bf').onsubmit = function (e) {
+          e.preventDefault(); readBlockForm();
+          if (!App.showErrors($('bf'), checkBlock())) return;
+          $('b-out').innerHTML = App.busy('重なる予約を調べています');
+          adminCall('api_admin_addBlock', blockReq(false)).then(function (r) {
+            if (r.status !== 'PREVIEW') { $('b-out').innerHTML = App.note('ng', r.reasonText || '登録できません', ''); return; }
+            c.preview = r; c.step = 'confirm'; renderPanel(); App.reveal($('h-panel'));
+          }, function (e2) { if (e2 && e2.message === 'denied') return; $('b-out').innerHTML = App.note('wait', '通信がつながりませんでした', ''); });
+        };
+        if ($('b-fix')) $('b-fix').onclick = function () { c.step = 'form'; renderPanel(); };
+        if ($('b-send')) $('b-send').onclick = function () {
+          c.step = 'sending'; renderPanel();
+          adminCall('api_admin_addBlock', blockReq(true)).then(function (r) {
+            if (r.status !== 'OK') { c.step = 'confirm'; renderPanel(); $('b-out').innerHTML = App.note('ng', r.reasonText || '登録できませんでした', ''); return; }
+            c.result = r; c.step = 'done'; renderPanel(); App.reveal($('h-panel')); loadWeek();
+          }, function (e2) { if (e2 && e2.message === 'denied') return; c.step = 'confirm'; renderPanel(); $('b-out').innerHTML = App.note('wait', '通信がつながりませんでした。もう一度押してください', ''); });
+        };
+        if ($('b-done')) $('b-done').onclick = function () { closePanel(); };
+      }
+      if (A.view === 'blocks' && $('b-new')) $('b-new').onclick = function () { openBlock(); };
+      if (A.view === 'blockDetail' && $('d-done')) $('d-done').onclick = function () { closePanel(); };
+      App.on(p, 'button[data-release]', function (b) { release(b.getAttribute('data-release'), b); });
+      App.on(p, 'button[data-open]', function (b) { openDetail(b.getAttribute('data-open')); });
+      App.on(p, 'button[data-called]', function (b) {
+        b.disabled = true;
+        adminCall('api_admin_markCalled', { reservationId: b.getAttribute('data-called') }).then(function () {
+          return loadCalls();
+        }).then(function (items) { if (A.view === 'calls') { A.ctx.items = items || []; renderPanel(); } }, function () { b.disabled = false; });
+      });
+    }
+
+    if (A.token) showApp(); else showLogin();
+  }());
+  </script>
+</body>
+</html>

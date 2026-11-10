@@ -1,0 +1,7 @@
+{
+  "_readme": "性能の合格基準。要件8により、根拠のない値は置かない。初期実装で計測し、実GASでの実測（harness/real-gas）と照合してから maxMs を入れる。null は『記録のみ』。",
+  "budgets": {
+    "availability.month.estGasMs": { "maxMs": null, "note": "1か月分の空き表示（推定）" },
+    "submit.estGasMs": { "maxMs": null, "note": "申込み1件の処理（推定）" }
+  }
+}

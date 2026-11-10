@@ -1,0 +1,865 @@
+{
+ "a": {
+  "days": 100,
+  "rows": 800,
+  "items": [
+   {
+    "label": "doGet（住民の画面）",
+    "fn": "doGet",
+    "sheetOps": 0,
+    "ops": {
+     "props": 1
+    },
+    "estGasMs": 25,
+    "wallMs": 48.5
+   },
+   {
+    "label": "api_admin_login",
+    "fn": "api_admin_login",
+    "status": "OK",
+    "sheetOps": 0,
+    "ops": {
+     "cache": 2,
+     "props": 1,
+     "util.digest": 1,
+     "util.uuid": 2
+    },
+    "estGasMs": 75,
+    "wallMs": 35
+   },
+   {
+    "label": "api_admin_register（電話）",
+    "fn": "api_admin_register",
+    "status": "CONFIRMED",
+    "sheetOps": 26,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 8,
+     "sh.dims": 5,
+     "sh.get": 2,
+     "sh.append": 4,
+     "sh.set": 2,
+     "ss.insertSheet": 1,
+     "sh.clear": 1,
+     "sh.frozen": 1,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 1870,
+    "wallMs": 85.9
+   },
+   {
+    "label": "api_getAvailability（1か月）",
+    "fn": "api_getAvailability",
+    "status": "OK",
+    "sheetOps": 6,
+    "ops": {
+     "props": 1,
+     "ss.open": 1,
+     "ss.meta": 2,
+     "sh.dims": 2,
+     "sh.get": 1
+    },
+    "estGasMs": 385,
+    "wallMs": 86.4
+   },
+   {
+    "label": "api_admin_availability（1週間）",
+    "fn": "api_admin_availability",
+    "status": "OK",
+    "sheetOps": 6,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 2,
+     "sh.dims": 2,
+     "sh.get": 1
+    },
+    "estGasMs": 405,
+    "wallMs": 55.8
+   },
+   {
+    "label": "api_admin_week（週の表を1回で）",
+    "fn": "api_admin_week",
+    "status": "OK",
+    "sheetOps": 12,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 4,
+     "sh.dims": 4,
+     "sh.get": 3
+    },
+    "estGasMs": 685,
+    "wallMs": 89.1
+   },
+   {
+    "label": "api_admin_list（1週間）",
+    "fn": "api_admin_list",
+    "status": "OK",
+    "sheetOps": 10,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 3,
+     "sh.dims": 3,
+     "sh.get": 3
+    },
+    "estGasMs": 615,
+    "wallMs": 73.4
+   },
+   {
+    "label": "api_admin_list（名前で探す）",
+    "fn": "api_admin_list",
+    "status": "OK",
+    "sheetOps": 16,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 6,
+     "sh.dims": 6,
+     "sh.get": 3
+    },
+    "estGasMs": 825,
+    "wallMs": 78.5
+   },
+   {
+    "label": "api_admin_callList",
+    "fn": "api_admin_callList",
+    "status": "OK",
+    "sheetOps": 10,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 3,
+     "sh.dims": 3,
+     "sh.get": 3
+    },
+    "estGasMs": 615,
+    "wallMs": 75
+   },
+   {
+    "label": "api_admin_blockList",
+    "fn": "api_admin_blockList",
+    "status": "OK",
+    "sheetOps": 3,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 1,
+     "sh.dims": 1
+    },
+    "estGasMs": 265,
+    "wallMs": 40.3
+   },
+   {
+    "label": "api_admin_monthTable",
+    "fn": "api_admin_monthTable",
+    "status": "OK",
+    "sheetOps": 9,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 3,
+     "sh.dims": 3,
+     "sh.get": 2
+    },
+    "estGasMs": 545,
+    "wallMs": 73.6
+   },
+   {
+    "label": "api_getRequestStatus",
+    "fn": "api_getRequestStatus",
+    "status": "CONFIRMED",
+    "sheetOps": 4,
+    "ops": {
+     "props": 1,
+     "ss.open": 1,
+     "ss.meta": 1,
+     "sh.dims": 1,
+     "sh.get": 1
+    },
+    "estGasMs": 315,
+    "wallMs": 58.1
+   },
+   {
+    "label": "api_lookupReservation",
+    "fn": "api_lookupReservation",
+    "status": "OK",
+    "sheetOps": 4,
+    "ops": {
+     "props": 1,
+     "ss.open": 1,
+     "ss.meta": 1,
+     "sh.dims": 1,
+     "sh.get": 1
+    },
+    "estGasMs": 315,
+    "wallMs": 57
+   },
+   {
+    "label": "api_admin_change（時間帯）",
+    "fn": "api_admin_change",
+    "status": "CHANGED",
+    "sheetOps": 17,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 5,
+     "sh.dims": 3,
+     "sh.get": 2,
+     "sh.append": 2,
+     "sh.set": 3,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 1170,
+    "wallMs": 80.9
+   },
+   {
+    "label": "api_admin_markCalled",
+    "fn": "api_admin_markCalled",
+    "status": "OK",
+    "sheetOps": 8,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 2,
+     "sh.dims": 1,
+     "sh.get": 1,
+     "sh.set": 1,
+     "sh.append": 1,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 610,
+    "wallMs": 47.3
+   },
+   {
+    "label": "api_admin_addBlock（確認）",
+    "fn": "api_admin_addBlock",
+    "status": "PREVIEW",
+    "sheetOps": 7,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 2,
+     "sh.dims": 2,
+     "sh.get": 2
+    },
+    "estGasMs": 475,
+    "wallMs": 66.4
+   },
+   {
+    "label": "api_admin_addBlock（登録）",
+    "fn": "api_admin_addBlock",
+    "status": "OK",
+    "sheetOps": 15,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 5,
+     "sh.dims": 3,
+     "sh.append": 2,
+     "sh.get": 2,
+     "sh.set": 1,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 970,
+    "wallMs": 79.1
+   },
+   {
+    "label": "api_admin_releaseBlock",
+    "fn": "api_admin_releaseBlock",
+    "status": "OK",
+    "sheetOps": 16,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 5,
+     "sh.dims": 3,
+     "sh.get": 3,
+     "sh.set": 2,
+     "sh.append": 1,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 1020,
+    "wallMs": 75.3
+   },
+   {
+    "label": "api_admin_exportMonth",
+    "fn": "api_admin_exportMonth",
+    "status": "OK",
+    "sheetOps": 18,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 5,
+     "sh.dims": 4,
+     "sh.get": 3,
+     "sh.clear": 1,
+     "sh.set": 1,
+     "sh.frozen": 1,
+     "sh.append": 1,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 1050,
+    "wallMs": 78.2
+   },
+   {
+    "label": "api_admin_cancel",
+    "fn": "api_admin_cancel",
+    "status": "CANCELLED",
+    "sheetOps": 17,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 5,
+     "sh.dims": 3,
+     "sh.get": 3,
+     "sh.set": 3,
+     "sh.append": 1,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 1120,
+    "wallMs": 76.5
+   },
+   {
+    "label": "api_submitReservation（住民）",
+    "fn": "api_submitReservation",
+    "status": "CONFIRMED",
+    "sheetOps": 18,
+    "ops": {
+     "props": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 5,
+     "sh.dims": 4,
+     "sh.get": 3,
+     "sh.append": 3,
+     "sh.set": 1,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 1180,
+    "wallMs": 70.5
+   },
+   {
+    "label": "job_processNotifications",
+    "fn": "job_processNotifications",
+    "status": "OK",
+    "sheetOps": 13,
+    "ops": {
+     "lock.acquire": 2,
+     "props": 1,
+     "ss.open": 1,
+     "ss.meta": 2,
+     "sh.dims": 3,
+     "sh.get": 3,
+     "sh.set": 2,
+     "ss.flush": 2,
+     "lock.release": 2,
+     "mail.quota": 1,
+     "mail.send": 1
+    },
+    "estGasMs": 1225,
+    "wallMs": 75.5
+   },
+   {
+    "label": "job_archiveLedger",
+    "fn": "job_archiveLedger",
+    "status": "OK",
+    "sheetOps": 37,
+    "ops": {
+     "lock.acquire": 1,
+     "props": 1,
+     "ss.open": 1,
+     "ss.meta": 7,
+     "sh.dims": 12,
+     "sh.get": 3,
+     "sh.set": 6,
+     "ss.flush": 4,
+     "sh.clear": 3,
+     "sh.append": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 2090,
+    "wallMs": 124.7
+   }
+  ]
+ },
+ "b": {
+  "days": 365,
+  "rows": 2920,
+  "items": [
+   {
+    "label": "doGet（住民の画面）",
+    "fn": "doGet",
+    "sheetOps": 0,
+    "ops": {
+     "props": 1
+    },
+    "estGasMs": 25,
+    "wallMs": 34.8
+   },
+   {
+    "label": "api_admin_login",
+    "fn": "api_admin_login",
+    "status": "OK",
+    "sheetOps": 0,
+    "ops": {
+     "cache": 2,
+     "props": 1,
+     "util.digest": 1,
+     "util.uuid": 2
+    },
+    "estGasMs": 75,
+    "wallMs": 35.6
+   },
+   {
+    "label": "api_admin_register（電話）",
+    "fn": "api_admin_register",
+    "status": "CONFIRMED",
+    "sheetOps": 26,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 8,
+     "sh.dims": 5,
+     "sh.get": 2,
+     "sh.append": 4,
+     "sh.set": 2,
+     "ss.insertSheet": 1,
+     "sh.clear": 1,
+     "sh.frozen": 1,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 1870,
+    "wallMs": 153.6
+   },
+   {
+    "label": "api_getAvailability（1か月）",
+    "fn": "api_getAvailability",
+    "status": "OK",
+    "sheetOps": 6,
+    "ops": {
+     "props": 1,
+     "ss.open": 1,
+     "ss.meta": 2,
+     "sh.dims": 2,
+     "sh.get": 1
+    },
+    "estGasMs": 385,
+    "wallMs": 106
+   },
+   {
+    "label": "api_admin_availability（1週間）",
+    "fn": "api_admin_availability",
+    "status": "OK",
+    "sheetOps": 6,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 2,
+     "sh.dims": 2,
+     "sh.get": 1
+    },
+    "estGasMs": 405,
+    "wallMs": 73.3
+   },
+   {
+    "label": "api_admin_week（週の表を1回で）",
+    "fn": "api_admin_week",
+    "status": "OK",
+    "sheetOps": 12,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 4,
+     "sh.dims": 4,
+     "sh.get": 3
+    },
+    "estGasMs": 685,
+    "wallMs": 189.3
+   },
+   {
+    "label": "api_admin_list（1週間）",
+    "fn": "api_admin_list",
+    "status": "OK",
+    "sheetOps": 10,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 3,
+     "sh.dims": 3,
+     "sh.get": 3
+    },
+    "estGasMs": 615,
+    "wallMs": 167.2
+   },
+   {
+    "label": "api_admin_list（名前で探す）",
+    "fn": "api_admin_list",
+    "status": "OK",
+    "sheetOps": 16,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 6,
+     "sh.dims": 6,
+     "sh.get": 3
+    },
+    "estGasMs": 825,
+    "wallMs": 180.4
+   },
+   {
+    "label": "api_admin_callList",
+    "fn": "api_admin_callList",
+    "status": "OK",
+    "sheetOps": 10,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 3,
+     "sh.dims": 3,
+     "sh.get": 3
+    },
+    "estGasMs": 615,
+    "wallMs": 171
+   },
+   {
+    "label": "api_admin_blockList",
+    "fn": "api_admin_blockList",
+    "status": "OK",
+    "sheetOps": 3,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 1,
+     "sh.dims": 1
+    },
+    "estGasMs": 265,
+    "wallMs": 36.2
+   },
+   {
+    "label": "api_admin_monthTable",
+    "fn": "api_admin_monthTable",
+    "status": "OK",
+    "sheetOps": 9,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 3,
+     "sh.dims": 3,
+     "sh.get": 2
+    },
+    "estGasMs": 545,
+    "wallMs": 140.9
+   },
+   {
+    "label": "api_getRequestStatus",
+    "fn": "api_getRequestStatus",
+    "status": "CONFIRMED",
+    "sheetOps": 4,
+    "ops": {
+     "props": 1,
+     "ss.open": 1,
+     "ss.meta": 1,
+     "sh.dims": 1,
+     "sh.get": 1
+    },
+    "estGasMs": 315,
+    "wallMs": 111.8
+   },
+   {
+    "label": "api_lookupReservation",
+    "fn": "api_lookupReservation",
+    "status": "OK",
+    "sheetOps": 4,
+    "ops": {
+     "props": 1,
+     "ss.open": 1,
+     "ss.meta": 1,
+     "sh.dims": 1,
+     "sh.get": 1
+    },
+    "estGasMs": 315,
+    "wallMs": 109.8
+   },
+   {
+    "label": "api_admin_change（時間帯）",
+    "fn": "api_admin_change",
+    "status": "CHANGED",
+    "sheetOps": 17,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 5,
+     "sh.dims": 3,
+     "sh.get": 2,
+     "sh.append": 2,
+     "sh.set": 3,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 1170,
+    "wallMs": 150.1
+   },
+   {
+    "label": "api_admin_markCalled",
+    "fn": "api_admin_markCalled",
+    "status": "OK",
+    "sheetOps": 8,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 2,
+     "sh.dims": 1,
+     "sh.get": 1,
+     "sh.set": 1,
+     "sh.append": 1,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 610,
+    "wallMs": 67.3
+   },
+   {
+    "label": "api_admin_addBlock（確認）",
+    "fn": "api_admin_addBlock",
+    "status": "PREVIEW",
+    "sheetOps": 7,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "ss.open": 1,
+     "ss.meta": 2,
+     "sh.dims": 2,
+     "sh.get": 2
+    },
+    "estGasMs": 475,
+    "wallMs": 135.2
+   },
+   {
+    "label": "api_admin_addBlock（登録）",
+    "fn": "api_admin_addBlock",
+    "status": "OK",
+    "sheetOps": 15,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 5,
+     "sh.dims": 3,
+     "sh.append": 2,
+     "sh.get": 2,
+     "sh.set": 1,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 970,
+    "wallMs": 147.8
+   },
+   {
+    "label": "api_admin_releaseBlock",
+    "fn": "api_admin_releaseBlock",
+    "status": "OK",
+    "sheetOps": 16,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 5,
+     "sh.dims": 3,
+     "sh.get": 3,
+     "sh.set": 2,
+     "sh.append": 1,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 1020,
+    "wallMs": 148.3
+   },
+   {
+    "label": "api_admin_exportMonth",
+    "fn": "api_admin_exportMonth",
+    "status": "OK",
+    "sheetOps": 18,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 5,
+     "sh.dims": 4,
+     "sh.get": 3,
+     "sh.clear": 1,
+     "sh.set": 1,
+     "sh.frozen": 1,
+     "sh.append": 1,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 1050,
+    "wallMs": 147.8
+   },
+   {
+    "label": "api_admin_cancel",
+    "fn": "api_admin_cancel",
+    "status": "CANCELLED",
+    "sheetOps": 17,
+    "ops": {
+     "cache": 1,
+     "props": 1,
+     "util.digest": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 5,
+     "sh.dims": 3,
+     "sh.get": 3,
+     "sh.set": 3,
+     "sh.append": 1,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 1120,
+    "wallMs": 145.7
+   },
+   {
+    "label": "api_submitReservation（住民）",
+    "fn": "api_submitReservation",
+    "status": "CONFIRMED",
+    "sheetOps": 18,
+    "ops": {
+     "props": 1,
+     "lock.acquire": 1,
+     "ss.open": 1,
+     "ss.meta": 5,
+     "sh.dims": 4,
+     "sh.get": 3,
+     "sh.append": 3,
+     "sh.set": 1,
+     "ss.flush": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 1180,
+    "wallMs": 138.5
+   },
+   {
+    "label": "job_processNotifications",
+    "fn": "job_processNotifications",
+    "status": "OK",
+    "sheetOps": 13,
+    "ops": {
+     "lock.acquire": 2,
+     "props": 1,
+     "ss.open": 1,
+     "ss.meta": 2,
+     "sh.dims": 3,
+     "sh.get": 3,
+     "sh.set": 2,
+     "ss.flush": 2,
+     "lock.release": 2,
+     "mail.quota": 1,
+     "mail.send": 1
+    },
+    "estGasMs": 1225,
+    "wallMs": 178.4
+   },
+   {
+    "label": "job_archiveLedger",
+    "fn": "job_archiveLedger",
+    "status": "OK",
+    "sheetOps": 43,
+    "ops": {
+     "lock.acquire": 1,
+     "props": 1,
+     "ss.open": 1,
+     "ss.meta": 7,
+     "sh.dims": 15,
+     "sh.get": 3,
+     "sh.insertRows": 3,
+     "sh.set": 6,
+     "ss.flush": 4,
+     "sh.clear": 3,
+     "sh.append": 1,
+     "lock.release": 1
+    },
+    "estGasMs": 2240,
+    "wallMs": 336.5
+   }
+  ]
+ }
+}

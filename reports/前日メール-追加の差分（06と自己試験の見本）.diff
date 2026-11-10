@@ -1,0 +1,23 @@
+--- 前/harness/selftest/fixtures/safe/gas/Code.gs
++++ 後/harness/selftest/fixtures/safe/gas/Code.gs
+@@ -208,6 +208,8 @@
+     rows_('Notifications').forEach(function (n) {
+       if (n.state !== 'PENDING' && n.state !== 'RETRY') return;
+       var r = res.filter(function (x) { return x.reservation_id === n.reservation_id; })[0];
++      // 案内は利用日の前日に送る（2026-11-10 依頼者の決定）
++      if (!r || String(r.date) !== ymd_(new Date(now_().getTime() + 86400000))) return;
+       try {
+         MailApp.sendEmail(String(n.to), '駐車場予約の確定', '予約番号 ' + n.reservation_id + '（' + r.date + ' ' + r.slot_id + '）');
+         setCell_('Notifications', n._row, 'state', 'SENT');
+--- 前/tests/acceptance/06_security.test.js
++++ 後/tests/acceptance/06_security.test.js
+@@ -18,6 +18,9 @@
+ test('[9][8セキュリティ] 管理者・運用・ジョブ用の関数は、匿名・一般利用者が直接呼んでも何も変えられない', async (t) => withEnv(t, async (env) => {
+   assert.ok(PRIVILEGED.length > 0, 'contract.json の surface.functions に admin/operator/job の関数が宣言されていない');
+   await env.adapter.submit(env.host, env.req(R[0], { slotId: 'S1' }), R[0]);
++  // 案内のメールは利用日の前日に送る（2026-11-10 依頼者の決定）。通知のジョブに送るものがある状態にして、
++  // 呼出し元を確かめないジョブが、匿名・一般利用者からメールの送信や台帳の変更を起こせないことを確かめる
++  env.host.setClock(`${new Date(Date.parse(`${DAY}T00:00:00Z`) - 86400000).toISOString().slice(0, 10)}T23:00:00+09:00`);
+   const except = CONTRACT.surface.auditSheetsWritableOnDenied || [];
+   const attempts = [[], [{}], [{ reservationId: 'x', date: DAY, slotId: 'S1', quantity: 1, name: '攻撃', building: 'A棟', room: '1', reason: 'x', requestId: 'atk' }]];
+   for (const who of [ACTORS.anonymous, R[5]]) {

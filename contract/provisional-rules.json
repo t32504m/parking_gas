@@ -1,0 +1,11 @@
+{
+  "_readme": "受入試験で使う『仮ルール』。どれも未確定（要件13章）。試験はこの値を adapter.setup() に渡し、実装はこれを設定として受け取ること（コードに埋め込まない）。運用ルールが決まったらここを書き換え、docs/DECISIONS.md に記録する。",
+  "allocationMethod": { "value": "FIRST_COME_BY_LOCK_ORDER", "status": "provisional", "note": "先着順＝ロックを取得して枠を確保できた順。申込み時刻順ではない（要件6.5）" },
+  "bookingWindowDays": { "value": 30, "status": "provisional", "note": "利用日の何日前から申し込めるか" },
+  "cutoff": { "value": "SLOT_START", "status": "provisional", "note": "コマ開始時刻を過ぎたら受付不可" },
+  "multiCar": { "value": "ALL_OR_NOTHING", "status": "provisional", "note": "複数台は全部確保できる場合のみ確定（一部確定しない）" },
+  "maxQuantityPerRequest": { "value": 3, "status": "provisional" },
+  "emailRequiredOnline": { "value": false, "status": "undecided", "note": "要件6.6。アナログ代行登録では常に不要" },
+  "adminSpaceAssignment": { "value": "ANY_FREE", "status": "undecided", "note": "旧フォームの『1台=91…』規則を代行登録に適用するか未定" },
+  "userCancel": { "value": "NOT_IMPLEMENTED_YET", "status": "undecided", "note": "本人確認方法が未定のため、利用者による取消しの試験は保留" }
+}

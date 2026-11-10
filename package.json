@@ -1,0 +1,31 @@
+{
+  "name": "parking-reservation-gas",
+  "version": "0.1.0",
+  "private": true,
+  "description": "自治会駐車場予約システム（GAS＋スプレッドシート）と、Google を使わずに検証するためのハーネス",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "verify": "node harness/report/verify.js",
+    "verify:quick": "node harness/report/verify.js --quick",
+    "verify:strict": "node harness/report/verify.js --strict",
+    "test:acceptance": "node --test \"tests/acceptance/*.test.js\"",
+    "test:ui": "node --test \"tests/ui/*.ui.test.js\"",
+    "lint:gas": "node harness/lint/gas-lint.js src",
+    "ui:audit": "node harness/persona/ui-audit.js",
+    "persona": "node harness/persona/drive.js",
+    "persona:score": "node harness/persona/score.js",
+    "serve": "node tools/serve-local.js",
+    "serve:harness": "node harness/web/serve.js",
+    "selftest": "node harness/selftest/run-selftest.js",
+    "selftest:quick": "node harness/selftest/run-selftest.js --quick",
+    "harness:check": "node harness/report/integrity.js check",
+    "harness:seal": "node harness/report/integrity.js seal"
+  },
+  "devDependencies": {
+    "@google/clasp": "^3.4.1",
+    "playwright": "^1.65.0"
+  }
+}

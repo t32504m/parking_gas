@@ -1,0 +1,1269 @@
+{
+  "at": "2026-11-07T08:24:54.306Z",
+  "mode": "quick",
+  "hasImpl": true,
+  "gates": {
+    "integrity": {
+      "ok": true,
+      "label": "保護ファイルが封印時のまま"
+    },
+    "lint": {
+      "ok": true,
+      "label": "GAS 静的検査のエラー 0"
+    },
+    "emulator": {
+      "ok": false,
+      "label": "エミュレータの前提が崩れていない"
+    },
+    "acceptance": {
+      "ok": false,
+      "label": "受入試験 全合格（0/0、未実装skip 0）"
+    },
+    "ui": {
+      "ok": false,
+      "label": "第1段階の必須画面試験が存在し合格"
+    },
+    "uiAudit": {
+      "ok": false,
+      "label": "画面の自動監査（スマホ幅・文字・押しやすさ・コントラスト）"
+    },
+    "persona": {
+      "ok": true,
+      "label": "ペルソナ評価が合格",
+      "required": false
+    }
+  },
+  "integrity": {
+    "ok": true,
+    "sealed": true,
+    "changed": [],
+    "added": [],
+    "removed": []
+  },
+  "lint": {
+    "srcDir": "G:\\test\\parking-gas-complete\\parking-gas\\src",
+    "files": 11,
+    "errors": 0,
+    "warnings": 2,
+    "findings": [
+      {
+        "level": "warn",
+        "file": "Index.html",
+        "line": 195,
+        "code": "LINK_TARGET",
+        "message": "GAS の iframe 内ではリンクに target=\"_top\" か \"_blank\" が必要"
+      },
+      {
+        "level": "warn",
+        "file": "Index.html",
+        "line": 199,
+        "code": "LINK_TARGET",
+        "message": "GAS の iframe 内ではリンクに target=\"_top\" か \"_blank\" が必要"
+      }
+    ]
+  },
+  "impl": [],
+  "uiAudit": {
+    "at": "2026-11-07T08:25:00.294Z",
+    "pass": false,
+    "results": [
+      {
+        "page": "user",
+        "device": "iPhone SE",
+        "problems": [
+          "44px 未満の押しにくい部品: 「10月19日（月） 空き」37x68 「10月20日（火） 空き」37x68 「10月21日（水） 空き」37x68 「10月22日（木） 空き」37x68 「10月23日（金） 空き」37x68 「10月24日（土） 残りわずか」37x68",
+          "文字と背景のコントラスト不足: 「1」3.12 「2」3.12 「3」3.12 「4」3.12"
+        ],
+        "warnings": [],
+        "status": 200,
+        "elements": 19,
+        "screenshot": "reports\\screens\\user__iPhone-SE.png",
+        "pass": false
+      },
+      {
+        "page": "user",
+        "device": "Pixel 7",
+        "problems": [
+          "文字と背景のコントラスト不足: 「1」3.12 「2」3.12 「3」3.12 「4」3.12"
+        ],
+        "warnings": [],
+        "status": 200,
+        "elements": 19,
+        "screenshot": "reports\\screens\\user__Pixel-7.png",
+        "pass": false
+      },
+      {
+        "page": "user",
+        "device": "Desktop Chrome",
+        "problems": [
+          "文字と背景のコントラスト不足: 「1」3.12 「2」3.12 「3」3.12 「4」3.12"
+        ],
+        "warnings": [],
+        "status": 200,
+        "elements": 19,
+        "screenshot": "reports\\screens\\user__Desktop-Chrome.png",
+        "pass": false
+      },
+      {
+        "page": "admin",
+        "device": "iPhone SE",
+        "problems": [],
+        "warnings": [],
+        "status": 200,
+        "elements": 3,
+        "screenshot": "reports\\screens\\admin__iPhone-SE.png",
+        "pass": true
+      },
+      {
+        "page": "admin",
+        "device": "Pixel 7",
+        "problems": [],
+        "warnings": [],
+        "status": 200,
+        "elements": 3,
+        "screenshot": "reports\\screens\\admin__Pixel-7.png",
+        "pass": true
+      },
+      {
+        "page": "admin",
+        "device": "Desktop Chrome",
+        "problems": [],
+        "warnings": [],
+        "status": 200,
+        "elements": 3,
+        "screenshot": "reports\\screens\\admin__Desktop-Chrome.png",
+        "pass": true
+      }
+    ]
+  },
+  "persona": {
+    "runId": "r9",
+    "at": "2026-11-07T08:25:00.310Z",
+    "personas": [
+      {
+        "id": "elder-resident",
+        "name": "高橋 フミ（78歳・住民）",
+        "objective": [
+          {
+            "taskId": "book-evening",
+            "problems": [],
+            "ended": "done",
+            "success": true,
+            "verifyDetail": "該当 1 件",
+            "invariantViolations": 0,
+            "steps": 8,
+            "maxSteps": 25,
+            "actionErrors": 0,
+            "backs": 0,
+            "pageErrors": [],
+            "unreadable": [],
+            "smallTargets": [],
+            "horizontalScroll": false,
+            "unfamiliarWords": [],
+            "maxEstUserWaitMs": 2985,
+            "pass": true
+          },
+          {
+            "taskId": "full-slot",
+            "problems": [],
+            "ended": "done",
+            "success": true,
+            "verifyDetail": "確定 0 件",
+            "invariantViolations": 0,
+            "steps": 2,
+            "maxSteps": 25,
+            "actionErrors": 0,
+            "backs": 0,
+            "pageErrors": [],
+            "unreadable": [],
+            "smallTargets": [],
+            "horizontalScroll": false,
+            "unfamiliarWords": [],
+            "maxEstUserWaitMs": 0,
+            "pass": true
+          }
+        ],
+        "subjective": {
+          "problems": [],
+          "tasks": [
+            {
+              "taskId": "book-evening",
+              "satisfaction": 4,
+              "confidence": 4,
+              "overview": 4,
+              "effort": 4,
+              "believedOutcome": "予約できたと思う",
+              "complaints": [
+                {
+                  "severity": "minor",
+                  "step": 8,
+                  "text": "「控えておいてください」とあるが、番号を何に使うか、問い合わせ先はどこか、が確定画面に書かれていない"
+                },
+                {
+                  "severity": "minor",
+                  "step": 3,
+                  "text": "入力欄に直接入力する形で、画面を下にずらさないと「確認へ進む」ボタンが見えず、押せると気づきにくい"
+                }
+              ],
+              "suggestions": [
+                "確定画面に「この番号は取り消しや問い合わせのときに使います」と一言添えてほしい",
+                "予約番号と一緒に、困ったときの係の電話番号も表示してほしい"
+              ]
+            },
+            {
+              "taskId": "full-slot",
+              "satisfaction": 4,
+              "confidence": 4,
+              "overview": 4,
+              "effort": 4,
+              "believedOutcome": "予約はできなかった（満車）。係に電話するか別の日を娘に相談すればよいと分かった",
+              "complaints": [
+                {
+                  "severity": "minor",
+                  "step": 2,
+                  "text": "電話番号の欄で文字が変なところで折れ、読みづらい"
+                },
+                {
+                  "severity": "minor",
+                  "step": 1,
+                  "text": "土曜の行が初めは見えず、下にずらすまで満車か分からない"
+                }
+              ],
+              "suggestions": [
+                "電話番号は折り返さずに1行で大きく表示し、押すと電話がかかることも書いてほしい"
+              ]
+            }
+          ],
+          "overall": {
+            "satisfaction": 4,
+            "wouldUseAgain": true,
+            "wouldRatherPhone": false,
+            "comment": "思っていたより迷わずにできて、予約番号も大きく出たので安心しました。ただ、その番号を何に使うのかが書いてあるともっと安心です。満車のときも電話番号が出て助かりました。"
+          },
+          "pass": true
+        },
+        "pass": true
+      },
+      {
+        "id": "busy-parent",
+        "name": "佐藤 健太（42歳・住民）",
+        "objective": [
+          {
+            "taskId": "book-two",
+            "problems": [],
+            "ended": "done",
+            "success": true,
+            "verifyDetail": "該当 1 件",
+            "invariantViolations": 0,
+            "steps": 10,
+            "maxSteps": 12,
+            "actionErrors": 0,
+            "backs": 0,
+            "pageErrors": [],
+            "unreadable": [],
+            "smallTargets": [],
+            "horizontalScroll": false,
+            "unfamiliarWords": [],
+            "maxEstUserWaitMs": 3105,
+            "pass": true
+          }
+        ],
+        "subjective": {
+          "problems": [],
+          "tasks": [
+            {
+              "taskId": "book-two",
+              "satisfaction": 4,
+              "confidence": 5,
+              "overview": 4,
+              "effort": 4,
+              "believedOutcome": "予約できたと思う（10/26 朝8〜11時 2台、予約番号853184）",
+              "complaints": [
+                {
+                  "severity": "minor",
+                  "step": 3,
+                  "text": "台数が1台のまま始まるので、2台の人は押し忘れそう。申込画面は読み込み後に台数が目立つほうが良い"
+                },
+                {
+                  "severity": "minor",
+                  "step": 1,
+                  "text": "来週の日付に行くのに「次の週」を押す手数がかかる。12手制限のうち10手を使い、余裕が少ない"
+                },
+                {
+                  "severity": "minor",
+                  "step": 10,
+                  "text": "メールを入れたのに、確認メールが届くかどうかの表示がない"
+                }
+              ],
+              "suggestions": [
+                "予約番号画面に、日付・時間・台数・番号をまとめてスクショしやすいことを意識した並びを維持してほしい",
+                "台数の初期値を空にして選ばせるか、より目立たせてほしい",
+                "確認メールの送信有無を完了画面に1行で書いてほしい"
+              ]
+            }
+          ],
+          "overall": {
+            "satisfaction": 4,
+            "wouldUseAgain": true,
+            "wouldRatherPhone": false,
+            "comment": "電車の中で片手でも、表のボタンを押して入力するだけで10手で終わった。予約番号が大きく出たのでスクショして安心できた。台数が1台のまま始まるのだけ、気をつけないと間違えそう。"
+          },
+          "pass": true
+        },
+        "pass": true
+      },
+      {
+        "id": "unstable-network",
+        "name": "井上 真理（35歳・住民・地下駐輪場で電波が弱い）",
+        "objective": [
+          {
+            "taskId": "book-with-drop",
+            "problems": [],
+            "ended": "done",
+            "success": true,
+            "verifyDetail": "該当 1 件",
+            "invariantViolations": 0,
+            "steps": 10,
+            "maxSteps": 15,
+            "actionErrors": 0,
+            "backs": 0,
+            "pageErrors": [],
+            "unreadable": [],
+            "smallTargets": [],
+            "horizontalScroll": false,
+            "unfamiliarWords": [],
+            "maxEstUserWaitMs": 2055,
+            "pass": true
+          }
+        ],
+        "subjective": {
+          "problems": [],
+          "tasks": [
+            {
+              "taskId": "book-with-drop",
+              "satisfaction": 4,
+              "confidence": 5,
+              "overview": 4,
+              "effort": 4,
+              "believedOutcome": "予約できたと思う（1件だけ、予約番号868348）",
+              "complaints": [
+                {
+                  "severity": "minor",
+                  "step": 9,
+                  "text": "通信が切れた画面に「もう一度申し込まなくてよい（二重にはなりません）」という一言がなく、確かめるボタンが安全だと自分で判断するしかなかった"
+                },
+                {
+                  "severity": "minor",
+                  "step": 1,
+                  "text": "申込み日の週が最初に出ず、来週分まで自分でめくる必要がある"
+                },
+                {
+                  "severity": "minor",
+                  "step": 10,
+                  "text": "確定画面に名前や棟・部屋が表示されず、自分の予約かどうかを番号と日時だけで判断することになる"
+                }
+              ],
+              "suggestions": [
+                "結果不明の画面に「もう一度申し込む必要はありません。下のボタンで確認してください」と書いてほしい",
+                "確定画面にも名前と棟・部屋を表示してほしい",
+                "今週が過ぎたあとの日付へすぐ移れる手段（日付指定）がほしい"
+              ]
+            }
+          ],
+          "overall": {
+            "satisfaction": 4,
+            "wouldUseAgain": true,
+            "wouldRatherPhone": false,
+            "comment": "通信が切れても、案内どおり確かめるボタンを押すだけで1件だけ予約できていると分かり、二重払いの心配が消えました。切れた直後の画面に『もう一度申し込まなくてよい』と一言あれば、もっと安心できます。"
+          },
+          "pass": true
+        },
+        "pass": true
+      },
+      {
+        "id": "colorblind-resident",
+        "name": "中川 亮（50歳・住民・色覚の特性あり）",
+        "objective": [
+          {
+            "taskId": "find-free",
+            "problems": [],
+            "ended": "done",
+            "success": true,
+            "verifyDetail": "該当 1 件",
+            "invariantViolations": 0,
+            "steps": 7,
+            "maxSteps": 15,
+            "actionErrors": 0,
+            "backs": 0,
+            "pageErrors": [],
+            "unreadable": [],
+            "smallTargets": [],
+            "horizontalScroll": false,
+            "unfamiliarWords": [],
+            "maxEstUserWaitMs": 2985,
+            "pass": true
+          }
+        ],
+        "subjective": {
+          "problems": [],
+          "tasks": [
+            {
+              "taskId": "find-free",
+              "satisfaction": 5,
+              "confidence": 5,
+              "overview": 5,
+              "effort": 4,
+              "believedOutcome": "予約できたと思う",
+              "complaints": [
+                {
+                  "severity": "minor",
+                  "step": 0,
+                  "text": "今日の「朝」のマスが「－」だけで、もう過ぎたから選べないのか、他の理由か説明がない"
+                },
+                {
+                  "severity": "minor",
+                  "step": 7,
+                  "text": "「閉じる」ボタンが画面上部と下部に2つあり、どちらを押しても同じなのか一瞬迷う"
+                }
+              ],
+              "suggestions": [
+                "選べない枠（過ぎた時間）には「受付終了」など理由を文字で書いてほしい",
+                "完了画面の「閉じる」を1つにしてほしい"
+              ]
+            }
+          ],
+          "overall": {
+            "satisfaction": 5,
+            "wouldUseAgain": true,
+            "wouldRatherPhone": false,
+            "comment": "色が分からなくても、空きも満車も文字で書いてあるので迷わず使えた。確認画面と予約番号も分かりやすく、7手で終わって楽だった。"
+          },
+          "pass": true
+        },
+        "pass": true
+      },
+      {
+        "id": "admin-phone",
+        "name": "山本 和子（67歳・自治会役員・管理者）",
+        "objective": [
+          {
+            "taskId": "proxy-register",
+            "problems": [],
+            "ended": "done",
+            "success": true,
+            "verifyDetail": "該当 1 件",
+            "invariantViolations": 0,
+            "steps": 14,
+            "maxSteps": 20,
+            "actionErrors": 1,
+            "backs": 0,
+            "pageErrors": [],
+            "unreadable": [],
+            "smallTargets": [],
+            "horizontalScroll": false,
+            "unfamiliarWords": [],
+            "maxEstUserWaitMs": 4475,
+            "pass": true
+          },
+          {
+            "taskId": "proxy-cancel",
+            "problems": [],
+            "ended": "done",
+            "success": true,
+            "verifyDetail": "取消済み 1 件、残った割当て 0 件",
+            "invariantViolations": 0,
+            "steps": 8,
+            "maxSteps": 20,
+            "actionErrors": 0,
+            "backs": 0,
+            "pageErrors": [],
+            "unreadable": [],
+            "smallTargets": [],
+            "horizontalScroll": false,
+            "unfamiliarWords": [],
+            "maxEstUserWaitMs": 4475,
+            "pass": true
+          }
+        ],
+        "subjective": {
+          "problems": [],
+          "tasks": [
+            {
+              "taskId": "proxy-register",
+              "satisfaction": 4,
+              "confidence": 5,
+              "overview": 4,
+              "effort": 4,
+              "believedOutcome": "予約できたと思う（予約番号378434を中村さんに伝えた）",
+              "complaints": [
+                {
+                  "severity": "minor",
+                  "step": 13,
+                  "text": "『本人に伝えた』を押した後、押せなくなるだけで『伝えた記録を残した』などの表示がなく、何が起きたか分からない"
+                },
+                {
+                  "severity": "minor",
+                  "step": 11,
+                  "text": "台数を入力する場面がなく、1台に自動で決まっていた。電話で『1台』と聞いたことと合っているか、確認画面を見て初めて分かる"
+                },
+                {
+                  "severity": "minor",
+                  "step": 14,
+                  "text": "登録後の週の表では、昼の93番が『中村』とだけ出て、予約番号は表から分からない（控えを失くしたら探す必要がある）"
+                }
+              ],
+              "suggestions": [
+                "『本人に伝えた』を押した後に『伝えたことを記録しました』と表示してほしい",
+                "登録の確認画面か完了画面で、台数を変えられることが分かるようにしてほしい"
+              ]
+            },
+            {
+              "taskId": "proxy-cancel",
+              "satisfaction": 5,
+              "confidence": 5,
+              "overview": 4,
+              "effort": 5,
+              "believedOutcome": "取り消せたと思う（理由『本人から電話』も残った）",
+              "complaints": [
+                {
+                  "severity": "minor",
+                  "step": 6,
+                  "text": "『この予約を取り消す』を押した後、理由の選択と『取り消す』ボタンが画面の下に出るので、スクロールしないと続きが見えない"
+                }
+              ],
+              "suggestions": [
+                "取り消す理由の選択肢が見える位置まで、画面を自動で動かしてほしい"
+              ]
+            }
+          ],
+          "overall": {
+            "satisfaction": 4,
+            "wouldUseAgain": true,
+            "wouldRatherPhone": false,
+            "comment": "電話を受けながらでも、押すところが大きくて、数字も読み上げの言葉まで出るので助かりました。登録も取り消しも最後にはっきり『しました』と出るので安心です。『本人に伝えた』を押した後だけ、何が起きたのか分からなかったです。"
+          },
+          "pass": true
+        },
+        "pass": true
+      },
+      {
+        "id": "admin-desk",
+        "name": "前田 誠（58歳・自治会会計・管理者・PC）",
+        "objective": [
+          {
+            "taskId": "week-overview-register",
+            "problems": [],
+            "ended": "done",
+            "success": true,
+            "verifyDetail": "該当 1 件",
+            "invariantViolations": 0,
+            "steps": 10,
+            "maxSteps": 12,
+            "actionErrors": 0,
+            "backs": 0,
+            "pageErrors": [],
+            "unreadable": [],
+            "smallTargets": [],
+            "horizontalScroll": false,
+            "unfamiliarWords": [],
+            "maxEstUserWaitMs": 4475,
+            "pass": true
+          }
+        ],
+        "subjective": {
+          "problems": [],
+          "tasks": [
+            {
+              "taskId": "week-overview-register",
+              "satisfaction": 4,
+              "confidence": 5,
+              "overview": 5,
+              "effort": 4,
+              "believedOutcome": "予約できたと思う",
+              "complaints": [
+                {
+                  "severity": "minor",
+                  "step": 3,
+                  "text": "空き枠の「＋」が薄いグレーで小さく、表が一面「＋」の並びに見える。埋まった枠の色（薄い青）のおかげで読めるが、空きだけを探すには目が疲れる"
+                },
+                {
+                  "severity": "minor",
+                  "step": 3,
+                  "text": "10/19の行で「今日」の札が日付欄からはみ出し、すぐ隣の「－」の枠に重なっている。「－」が何を意味するか（過去で受付不可）は説明がなく推測になる"
+                },
+                {
+                  "severity": "minor",
+                  "step": 4,
+                  "text": "「91番」「92番」「93番」が何の番号なのか画面に書かれていない。課題には不要だったが、初めて見る人には意味が分からない"
+                },
+                {
+                  "severity": "minor",
+                  "step": 9,
+                  "text": "名前の姓と名の間に空白を入れずに入力して、そのまま登録できた。「森和夫」と詰まった表記が台帳にも表に出る。注意は出ない"
+                }
+              ],
+              "suggestions": [
+                "名前・棟・部屋・電話を1つの流れで入力できるようにして、手数を減らしてほしい",
+                "「91番」の意味（区画番号など）と「－」の意味を、表の近くに短く書いてほしい",
+                "空きの「＋」をもう少し濃く大きくしてほしい"
+              ]
+            }
+          ],
+          "overall": {
+            "satisfaction": 4,
+            "wouldUseAgain": true,
+            "wouldRatherPhone": false,
+            "comment": "週の表を開いた瞬間に、どこが空いていてどこが埋まっているか分かったので、苛立たずに済んだ。登録も横の欄で完結して、予約番号まで出たので安心した。細かいところ（＋が薄い、91番の意味が書いていない）は気になるが、会計の週末作業としては十分使える。"
+          },
+          "pass": true
+        },
+        "pass": true
+      }
+    ],
+    "pass": true,
+    "stale": false
+  },
+  "emulator": [],
+  "acceptance": [],
+  "ui": [],
+  "metrics": [],
+  "findings": [],
+  "selftest": {
+    "at": "2026-10-19T02:15:37.779Z",
+    "ok": true,
+    "parts": [
+      {
+        "name": "エミュレータ単体試験",
+        "ok": true,
+        "note": "18 pass / 0 fail",
+        "failed": []
+      },
+      {
+        "name": "lint: 最小実装は合格",
+        "ok": true,
+        "note": "gas-lint: 2 files, 0 errors, 0 warnings"
+      },
+      {
+        "name": "lint が ACTIVE_SPREADSHEET を検出",
+        "ok": true,
+        "note": ""
+      },
+      {
+        "name": "lint が NOT_IN_GAS を検出",
+        "ok": true,
+        "note": ""
+      },
+      {
+        "name": "lint が UNDECLARED_PUBLIC を検出",
+        "ok": true,
+        "note": ""
+      },
+      {
+        "name": "lint が DUPLICATE_FUNCTION を検出",
+        "ok": true,
+        "note": ""
+      },
+      {
+        "name": "最小実装で受入試験が全て合格（試験が合格可能）",
+        "ok": true,
+        "note": "35 pass / 0 fail",
+        "failed": []
+      },
+      {
+        "name": "改変 NO_LOCK を検出",
+        "ok": true,
+        "note": "2件の試験が不合格: [6.5][11競合] 残り1台へ5人が同時に申し込むと、確定は1件だけ",
+        "why": "ロックを外すと、残り1台に複数が確定する",
+        "failed": [
+          "[6.5][11競合] 残り1台へ5人が同時に申し込むと、確定は1件だけ",
+          "[6.5][A-04][11競合] 利用者の申込みと管理者の代行登録が同時に起きても重複しない"
+        ]
+      },
+      {
+        "name": "改変 NO_FLUSH_BEFORE_UNLOCK を検出",
+        "ok": true,
+        "note": "2件の試験が不合格: [6.5][11競合] 残り1台へ5人が同時に申し込むと、確定は1件だけ",
+        "why": "flush せずにロックを解放すると、次の実行が書込み前の内容を読み、二重予約になる",
+        "failed": [
+          "[6.5][11競合] 残り1台へ5人が同時に申し込むと、確定は1件だけ",
+          "[6.5][A-04][11競合] 利用者の申込みと管理者の代行登録が同時に起きても重複しない"
+        ]
+      },
+      {
+        "name": "改変 NO_IDEMPOTENCY を検出",
+        "ok": true,
+        "note": "2件の試験が不合格: [6.5][11障害] 同じ受付要求IDを再送しても二重登録されず、同じ予約番号が返る",
+        "why": "受付要求IDの重複確認をやめると、再送で二重登録される",
+        "failed": [
+          "[6.5][11障害] 同じ受付要求IDを再送しても二重登録されず、同じ予約番号が返る",
+          "[6.5][11障害] ボタン連打（同じ受付要求IDの同時送信）でも予約は1件"
+        ]
+      },
+      {
+        "name": "改変 PII_LEAK を検出",
+        "ok": true,
+        "note": "1件の試験が不合格: [6.1][9][8個人情報] 一般公開の空き情報に他人の氏名・部屋・連絡先が含まれない",
+        "why": "空き情報に氏名を混ぜると、個人情報の漏えいとして検出される",
+        "failed": [
+          "[6.1][9][8個人情報] 一般公開の空き情報に他人の氏名・部屋・連絡先が含まれない"
+        ]
+      },
+      {
+        "name": "改変 NO_ADMIN_AUTH を検出",
+        "ok": true,
+        "note": "3件の試験が不合格: [9][A-05] 一般利用者は管理者用の予約一覧を見られない",
+        "why": "管理者確認をやめると、誰でも代行登録・一覧取得できる",
+        "failed": [
+          "[9][A-05] 一般利用者は管理者用の予約一覧を見られない",
+          "[9] 管理者用の秘密やURLを知らない者は、管理者になりすませない（画面の切替だけを認証にしない）",
+          "[A-08][8監査性] 代行登録と取消しについて、誰が・いつ・何を・なぜ行ったか記録される"
+        ]
+      },
+      {
+        "name": "改変 MAIL_IN_BOOKING を検出",
+        "ok": true,
+        "note": "2件の試験が不合格: [6.6] 予約の確定と通知は分離され、確定の時点ではメールを送らず、通知処理で送る",
+        "why": "確定処理の中でメールを送ると、通知の分離違反として検出される",
+        "failed": [
+          "[6.6] 予約の確定と通知は分離され、確定の時点ではメールを送らず、通知処理で送る",
+          "[6.6][11障害] 通知だけが失敗しても予約は確定のまま。再送対象として残り、後で送られる"
+        ]
+      },
+      {
+        "name": "改変 PARTIAL_ALLOCATION を検出",
+        "ok": true,
+        "note": "1件の試験が不合格: [6.5][仮ルール multiCar=ALL_OR_NOTHING][11境界] 3台中2台しか空いていないとき、3台の申込みは一部確定しない",
+        "why": "空いている分だけ確保すると、複数台の一部確定として検出される",
+        "failed": [
+          "[6.5][仮ルール multiCar=ALL_OR_NOTHING][11境界] 3台中2台しか空いていないとき、3台の申込みは一部確定しない"
+        ]
+      },
+      {
+        "name": "改変 NO_CUTOFF を検出",
+        "ok": true,
+        "note": "2件の試験が不合格: [仮ルール cutoff=SLOT_START][11境界] コマ開始の直前は受け付け、直後は受け付けない",
+        "why": "コマ開始後も受け付けると、期限の境界試験で検出される",
+        "failed": [
+          "[仮ルール cutoff=SLOT_START][11境界] コマ開始の直前は受け付け、直後は受け付けない",
+          "[仮ルール bookingWindowDays=30][11境界] 受付期間の内側は受け付け、外側は受け付けない"
+        ]
+      },
+      {
+        "name": "改変 SHEET_AUTOCONVERT を検出",
+        "ok": true,
+        "note": "2件の試験が不合格: [6.5][仮ルール multiCar=ALL_OR_NOTHING][11境界] 3台中2台しか空いていないとき、3台の申込みは一部確定しない",
+        "why": "文字列をそのまま書くと、電話番号の先頭0がスプレッドシートの自動変換で消える",
+        "failed": [
+          "[6.5][仮ルール multiCar=ALL_OR_NOTHING][11境界] 3台中2台しか空いていないとき、3台の申込みは一部確定しない",
+          "[6.4][7.2] 電話番号の先頭0や部屋番号が、シートの自動変換で壊れない"
+        ]
+      },
+      {
+        "name": "改変 CONFIRM_BEFORE_ALLOCATE を検出",
+        "ok": true,
+        "note": "2件の試験が不合格: [6.5][8復旧性] スプレッドシートへの書込みが途中で失敗しても、成功と表示せず、再送で正しく確定する",
+        "why": "枠の確保前に確定と書くと、途中停止で「確定なのに枠なし」になり、再送でも直らない",
+        "failed": [
+          "[6.5][8復旧性] スプレッドシートへの書込みが途中で失敗しても、成功と表示せず、再送で正しく確定する",
+          "[8復旧性][11障害] 処理が途中で強制終了しても、二重予約にならず、再送で回復する"
+        ]
+      },
+      {
+        "name": "改変 DATE_IN_RESPONSE を検出",
+        "ok": true,
+        "note": "5件の試験が不合格: [U-02][U-03][5章] 空き状況に4コマの時間帯・料金・残り台数が出る",
+        "why": "google.script.run の戻り値に Date を入れると、実GASでは null が届く",
+        "failed": [
+          "[U-02][U-03][5章] 空き状況に4コマの時間帯・料金・残り台数が出る",
+          "[5章][11正常] 第4コマは翌日8:00終了・600円として扱われる",
+          "[U-04][U-06][6.4] オンライン申込みで確定し、台帳に必要項目が残る",
+          "[A-01][A-04][8整合性] 利用者画面と管理者画面が同じ確定情報を参照する",
+          "[A-06][11正常] 取消し後、その枠が空きに戻り、別の人が予約できる"
+        ]
+      },
+      {
+        "name": "改変 IGNORE_LOCK_FAILURE を検出",
+        "ok": true,
+        "note": "1件の試験が不合格: [6.5][11障害] ロックを取得できないとき、確定したと表示せず、枠も確保しない",
+        "why": "ロックが取れなくても処理を続けると、障害試験で検出される",
+        "failed": [
+          "[6.5][11障害] ロックを取得できないとき、確定したと表示せず、枠も確保しない"
+        ]
+      },
+      {
+        "name": "改変 CANCEL_KEEPS_SLOT を検出",
+        "ok": true,
+        "note": "1件の試験が不合格: [A-06][11正常] 取消し後、その枠が空きに戻り、別の人が予約できる",
+        "why": "取消しで割当てを解放しないと、空きに戻らない",
+        "failed": [
+          "[A-06][11正常] 取消し後、その枠が空きに戻り、別の人が予約できる"
+        ]
+      },
+      {
+        "name": "改変 JOB_UNGUARDED を検出",
+        "ok": true,
+        "note": "1件の試験が不合格: [9][8セキュリティ] 管理者・運用・ジョブ用の関数は、匿名・一般利用者が直接呼んでも何も変えられない",
+        "why": "通知ジョブが呼出し元を確認しないと、匿名利用者がメール送信を起こせる",
+        "failed": [
+          "[9][8セキュリティ] 管理者・運用・ジョブ用の関数は、匿名・一般利用者が直接呼んでも何も変えられない"
+        ]
+      },
+      {
+        "name": "画面試験の部品（通信断の再現）が動く",
+        "ok": true,
+        "note": "1 pass / 0 fail"
+      },
+      {
+        "name": "画面監査: 最小実装は合格",
+        "ok": true,
+        "note": ""
+      },
+      {
+        "name": "画面監査: 悪い画面（viewport無し・小さい文字・小さいボタン・薄い文字）を検出",
+        "ok": true,
+        "note": "検出: viewport、12px 未満、44px 未満、コントラスト"
+      }
+    ],
+    "seconds": 107
+  },
+  "uiRequired": [
+    {
+      "id": "UI-01",
+      "stage": 1,
+      "req": [
+        "U-01",
+        "U-02",
+        "U-03",
+        "U-04",
+        "U-08"
+      ],
+      "what": "スマホ幅で、日付を選び、コマの時間帯・料金・残り台数を見て、申し込み、予約番号つきの確定表示が出る",
+      "status": "missing"
+    },
+    {
+      "id": "UI-02",
+      "stage": 1,
+      "req": [
+        "U-05"
+      ],
+      "what": "送信前に、日付・時間帯（翌日終了を含む）・料金・台数の確認表示が出て、戻って直せる",
+      "status": "missing"
+    },
+    {
+      "id": "UI-03",
+      "stage": 1,
+      "req": [
+        "U-02",
+        "8表示"
+      ],
+      "what": "満車のコマは『満車』と文字で示され、選べない（色だけに頼らない）",
+      "status": "missing"
+    },
+    {
+      "id": "UI-04",
+      "stage": 1,
+      "req": [
+        "6.5",
+        "U-07"
+      ],
+      "what": "古い画面のまま申し込み、その間に満車になった場合、『予約できなかった』と分かる表示になり、確定と誤表示しない",
+      "status": "missing"
+    },
+    {
+      "id": "UI-05",
+      "stage": 1,
+      "req": [
+        "U-07",
+        "U-08",
+        "6.5"
+      ],
+      "what": "送信の応答が届かない（通信断）場合、『結果が分からない』ことと確かめ方が表示され、確かめると確定済みと分かる。二重予約にならない",
+      "status": "missing"
+    },
+    {
+      "id": "UI-06",
+      "stage": 1,
+      "req": [
+        "U-07",
+        "6.5"
+      ],
+      "what": "サーバー処理中は『処理中』が表示され、ボタンを連打しても予約は1件",
+      "status": "missing"
+    },
+    {
+      "id": "UI-07",
+      "stage": 1,
+      "req": [
+        "A-01",
+        "A-02",
+        "A-03"
+      ],
+      "what": "管理者がスマホで、電話受付の予約をメールなしで代行登録し、確定と予約番号が表示される",
+      "status": "missing"
+    },
+    {
+      "id": "UI-08",
+      "stage": 1,
+      "req": [
+        "A-06"
+      ],
+      "what": "管理者が予約を探して取り消し、理由を残せる。取消し後、利用者画面の残り台数が戻る",
+      "status": "missing"
+    },
+    {
+      "id": "UI-09",
+      "stage": 2,
+      "req": [
+        "9"
+      ],
+      "what": "管理者画面を、管理者の資格を持たない人が開いても、台帳の情報（氏名・部屋・連絡先）が表示されない",
+      "status": "missing"
+    },
+    {
+      "id": "UI-10",
+      "stage": 2,
+      "req": [
+        "A-07"
+      ],
+      "what": "管理者が、電話連絡の必要な予約と対応状況を一覧で見て、対応済みにできる",
+      "status": "missing"
+    },
+    {
+      "id": "UI-11",
+      "stage": 2,
+      "req": [
+        "A-09"
+      ],
+      "what": "その日の予約一覧を印刷用に表示できる",
+      "status": "missing"
+    }
+  ],
+  "ok": false,
+  "seconds": 6,
+  "trace": [
+    {
+      "id": "U-01",
+      "stage": 1,
+      "text": "カレンダーから利用日を選択できる",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-01:missing"
+      ]
+    },
+    {
+      "id": "U-02",
+      "stage": 1,
+      "text": "日付ごとの空き状況を把握できる",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-01:missing",
+        "UI-03:missing"
+      ]
+    },
+    {
+      "id": "U-03",
+      "stage": 1,
+      "text": "各コマの時間帯・料金・残り台数を確認できる",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-01:missing"
+      ]
+    },
+    {
+      "id": "U-04",
+      "stage": 1,
+      "text": "コマと必要情報を入力して申し込める",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-01:missing"
+      ]
+    },
+    {
+      "id": "U-05",
+      "stage": 1,
+      "text": "送信前に内容を確認できる",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-02:missing"
+      ]
+    },
+    {
+      "id": "U-06",
+      "stage": 1,
+      "text": "受付のみと予約確定を区別する",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "U-07",
+      "stage": 1,
+      "text": "成立・不成立・処理中・通信エラーを分かりやすく表示",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-04:missing",
+        "UI-05:missing",
+        "UI-06:missing"
+      ]
+    },
+    {
+      "id": "U-08",
+      "stage": 1,
+      "text": "予約番号を表示し、後から確認できる",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-01:missing",
+        "UI-05:missing"
+      ]
+    },
+    {
+      "id": "U-09",
+      "stage": 2,
+      "text": "取消し・変更（本人確認方式は未定）",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "A-01",
+      "stage": 1,
+      "text": "スマホで空き状況と予約一覧を確認",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-07:missing"
+      ]
+    },
+    {
+      "id": "A-02",
+      "stage": 1,
+      "text": "電話・対面の予約を代行登録",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-07:missing"
+      ]
+    },
+    {
+      "id": "A-03",
+      "stage": 1,
+      "text": "登録時に利用者・日付・コマ・台数・連絡方法を確認",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-07:missing"
+      ]
+    },
+    {
+      "id": "A-04",
+      "stage": 1,
+      "text": "同じ台帳を使い、競合する予約を確定させない",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "A-05",
+      "stage": 2,
+      "text": "日付・駐車場・棟・部屋・予約番号で検索",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "A-06",
+      "stage": 1,
+      "text": "予約の取消し・変更",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-08:missing"
+      ]
+    },
+    {
+      "id": "A-07",
+      "stage": 2,
+      "text": "電話連絡が必要な予約と対応状況",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-10:missing"
+      ]
+    },
+    {
+      "id": "A-08",
+      "stage": 1,
+      "text": "誰が登録・変更・取消しを行ったか記録",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "A-09",
+      "stage": 2,
+      "text": "その日の予約一覧を印刷・出力",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-11:missing"
+      ]
+    },
+    {
+      "id": "A-10",
+      "stage": "later",
+      "text": "特別予約を一般の代行登録と区別",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "5章",
+      "stage": 1,
+      "text": "駐車場3台・4コマ・料金・第4コマ翌日終了",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "6.4",
+      "stage": 1,
+      "text": "予約台帳の保存項目",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "6.5",
+      "stage": 1,
+      "text": "予約確定と競合処理",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-04:missing",
+        "UI-05:missing",
+        "UI-06:missing"
+      ]
+    },
+    {
+      "id": "6.6",
+      "stage": 1,
+      "text": "通知の分離・失敗管理",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "7.2",
+      "stage": 1,
+      "text": "実装上の要件（サーバー側検証・ID管理など）",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "8セキュリティ",
+      "stage": 2,
+      "text": "管理者操作をサーバー側で認可",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "8個人情報",
+      "stage": 1,
+      "text": "公開の空き画面に個人情報を返さない",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "8監査性",
+      "stage": 1,
+      "text": "変更の追跡",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "8復旧性",
+      "stage": 1,
+      "text": "中断した予約・通知を安全に再開",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "8整合性",
+      "stage": 1,
+      "text": "利用者画面・管理者画面・台帳で同じ確定情報",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "8性能",
+      "stage": 1,
+      "text": "所要時間を個別に測定（基準は未確定）",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "8費用・制限",
+      "stage": 2,
+      "text": "利用上限の超過時に未処理を把握",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "9",
+      "stage": 2,
+      "text": "権限と公開範囲",
+      "status": "partial",
+      "tests": 0,
+      "uiTests": [
+        "UI-09:missing"
+      ]
+    },
+    {
+      "id": "11競合",
+      "stage": 1,
+      "text": "競合の試験",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "11障害",
+      "stage": 1,
+      "text": "障害の試験",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "11境界",
+      "stage": 1,
+      "text": "境界の試験",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    },
+    {
+      "id": "11正常",
+      "stage": 1,
+      "text": "正常動作の試験",
+      "status": "uncovered",
+      "tests": 0,
+      "uiTests": []
+    }
+  ]
+}

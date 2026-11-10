@@ -1,0 +1,26 @@
+{
+  "_readme": "ペルソナ評価の合格基準。実装AIは変更しない。すべてのペルソナが全項目を満たすまで改善を繰り返す。",
+  "objective": {
+    "taskSuccessRequired": true,
+    "maxStepsFromPersona": true,
+    "unreadableInteractiveAllowed": 0,
+    "smallTapTargetMinPx": 44,
+    "smallTapTargetAllowed": 0,
+    "horizontalScrollAllowed": false,
+    "unfamiliarWordHitsAllowed": 0,
+    "invariantViolationsAllowed": 0
+  },
+  "subjective": {
+    "minTaskSatisfaction": 4,
+    "minTaskConfidence": 4,
+    "minOverallSatisfaction": 4,
+    "criticalComplaintsAllowed": 0,
+    "majorComplaintsAllowedPerPersona": 1,
+    "minTaskOverview": 4
+  },
+  "process": {
+    "evaluatorMustBeFreshAgent": true,
+    "evidenceStepRequired": true
+  },
+  "_readme2": "minTaskOverview（全体の見通し・一覧性）は 2026-10-19 に利用者の指摘（一覧性が悪い・分かりにくい）を受けて追加した。"
+}

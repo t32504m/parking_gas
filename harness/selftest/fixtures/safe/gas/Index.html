@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<style>
+  body { font-family: sans-serif; margin: 12px; font-size: 18px; }
+  button { font-size: 18px; min-height: 48px; padding: 0 16px; }
+  input, select { font-size: 18px; min-height: 44px; width: 100%; box-sizing: border-box; }
+  .slot { border: 1px solid #888; padding: 8px; margin: 6px 0; }
+  #result { margin-top: 12px; font-weight: bold; }
+</style>
+</head>
+<body>
+<!-- 自己試験用の最小画面。製品UIの参考にしないこと。 -->
+<h1>駐車場予約</h1>
+<? if (mode === 'admin') { ?>
+  <section id="admin">
+    <label>管理者メール <input id="aemail"></label>
+    <label>パスコード <input id="asecret" type="password"></label>
+  </section>
+<? } ?>
+<label>利用日 <input type="date" id="date" data-testid="date-input"></label>
+<button id="load" data-testid="load-slots">空きを見る</button>
+<div id="slots" data-testid="slot-list"></div>
+<form id="f" style="display:none">
+  <label>お名前 <input name="name" required></label>
+  <label>棟 <input name="building"></label>
+  <label>部屋番号 <input name="room" required></label>
+  <label>電話 <input name="phone"></label>
+  <label>メール <input name="email"></label>
+  <button type="button" id="send" data-testid="submit">申し込む</button>
+</form>
+<div id="result" role="status" data-testid="result"></div>
+<script>
+  var MODE = <?= mode ?>;
+  var chosen = null;
+  var el = function (id) { return document.getElementById(id); };
+  el('load').onclick = function () {
+    var d = el('date').value;
+    if (!d) { el('result').textContent = '日付を選んでください'; return; }
+    el('slots').textContent = '読み込み中…';
+    google.script.run.withSuccessHandler(function (r) {
+      var day = r.days[0];
+      el('slots').innerHTML = '';
+      day.slots.forEach(function (s) {
+        var b = document.createElement('button');
+        b.className = 'slot'; b.type = 'button';
+        b.textContent = s.slotId + ' ' + s.start.slice(11, 16) + '〜' + s.end.slice(11, 16) + ' ' + s.price + '円' + (s.available ? ' 空きあり' : ' 満車');
+        b.disabled = !s.available;
+        b.onclick = function () { chosen = s; el('f').style.display = 'block'; el('result').textContent = s.slotId + ' を選びました'; };
+        el('slots').appendChild(b);
+      });
+    }).withFailureHandler(function (e) { el('slots').textContent = '通信エラー: ' + e.message; })
+      .api_getAvailability({ from: d, to: d });
+  };
+  el('send').onclick = function () {
+    var f = el('f');
+    var req = { requestId: 'rq-' + Date.now() + '-' + Math.random().toString(16).slice(2), date: el('date').value, slotId: chosen.slotId, quantity: 1,
+      name: f.name.value, building: f.building.value, room: f.room.value, phone: f.phone.value, email: f.email.value };
+    el('result').textContent = '送信中…';
+    var done = function (r) { el('result').textContent = r.status === 'CONFIRMED' ? '予約が確定しました。予約番号 ' + r.reservationId : '予約できませんでした（' + r.status + '）'; };
+    var fail = function (e) { el('result').textContent = '通信エラー。結果が不明です: ' + e.message; };
+    if (MODE === 'admin') {
+      req.channel = 'PHONE';
+      google.script.run.withSuccessHandler(done).withFailureHandler(fail).api_admin_register({ email: el('aemail').value, secret: el('asecret').value }, req);
+    } else {
+      google.script.run.withSuccessHandler(done).withFailureHandler(fail).api_submitReservation(req);
+    }
+  };
+</script>
+</body>
+</html>

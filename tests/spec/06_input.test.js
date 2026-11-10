@@ -1,0 +1,129 @@
+'use strict';
+// F. 入力の誤り・式の注入・電話番号（REQ 7.2, CLAUDE 5, 検討 1, D-021）
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { withSpec, ADMIN, hasDate, rid } = require('./spec-env');
+
+const D = '2026-11-20';
+
+test('[S-080] 誤った日付・コマ・台数は断り、台帳に書かない', async (t) => {
+  await withSpec(t, async (env) => {
+    const bad = [
+      { date: '2026/11/20' }, { date: '20261120' }, { date: '2027-02-30' }, { date: '2026-11-31' }, { date: '' }, { date: null },
+      { date: '2026-11-20T00:00:00Z' }, { slotId: 'S5' }, { slotId: '' }, { slotId: 's1' }, { slotId: '朝' },
+      { quantity: 2 }, { quantity: 0 }, { quantity: -1 }, { quantity: 1.5 }, { quantity: 'abc' }, { quantity: 3 },
+    ];
+    for (const o of bad) {
+      const r = await env.register({ date: D, ...o });
+      assert.notEqual(r.status, 'CONFIRMED', `${JSON.stringify(o)} が確定した`);
+    }
+    assert.equal(env.allocations().length, 0);
+    assert.equal(env.reservations().filter((x) => x['状態'] === '確定').length, 0);
+  });
+});
+
+test('[S-081] 氏名が空・長すぎる・制御文字を含むものは断る', async (t) => {
+  await withSpec(t, async (env) => {
+    for (const name of ['', '   ', 'あ'.repeat(1000)]) {
+      const r = await env.register({ date: D, slotId: 'S3', name });
+      assert.notEqual(r.status, 'CONFIRMED', `氏名 ${JSON.stringify(name).slice(0, 30)} が確定した`);
+    }
+    // 制御文字は、断るか、取り除いて保存する（シートに制御文字が入らない）
+    for (const name of ['山田\u0000太郎', '山田\u0007', '山田\u001b[31m']) {
+      const r = await env.register({ date: '2026-11-21', slotId: 'S1', name });
+      if (r.status === 'CONFIRMED') {
+        const v = env.resById(r.reservationId)['氏名'];
+        assert.ok(!/[\u0000-\u001f\u007f]/.test(v), `制御文字がシートに入った: ${JSON.stringify(v)}`);
+        await env.admin('api_admin_cancel', { reservationId: r.reservationId, reason: '管理者の判断', requestId: rid() });
+      }
+    }
+    const e = await env.register({ date: '2026-11-22', slotId: 'S4', email: 'a@example.net\u0000' });
+    if (e.status === 'CONFIRMED') assert.ok(!/[\u0000-\u001f]/.test(env.resById(e.reservationId)['メール']), 'メールに制御文字が入った');
+    for (const o of [{ room: 'x'.repeat(500) }, { phone: '1'.repeat(300) }, { email: 'x'.repeat(400) + '@example.net' }, { email: 'メールではない' }]) {
+      const r = await env.register({ date: D, slotId: 'S4', ...o });
+      assert.notEqual(r.status, 'CONFIRMED', `${JSON.stringify(o).slice(0, 40)} が確定した`);
+    }
+    assert.equal(env.activeAllocs(D).length, 0);
+  });
+});
+
+test('[S-082] 式を入れても、シートでは文字のまま（式として動かない）', async (t) => {
+  await withSpec(t, async (env) => {
+    const evil = ['=HYPERLINK("http://example.com","x")', '+1', '-1', '@SUM(A1)', '=1+1', "'=1+1", '=IMPORTXML("http://e","//a")'];
+    const ids = [];
+    for (let i = 0; i < evil.length; i++) {
+      const r = await env.register({ date: `2026-11-${11 + i}`, slotId: 'S2', name: evil[i], building: evil[(i + 1) % evil.length], room: evil[(i + 2) % evil.length], memo: evil[i] });
+      if (r.status === 'CONFIRMED') ids.push([r.reservationId, i]);
+    }
+    assert.ok(ids.length > 0, '式に見える氏名を全て断った（断るのでもよいが、少なくとも一部は通る想定）');
+    const f = env.formulas('予約');
+    assert.ok(f.every((row) => row.every((x) => !x)), `予約シートに式が入った: ${JSON.stringify(f.filter((r) => r.some(Boolean)))}`);
+    for (const [id, i] of ids) {
+      const x = env.resById(id);
+      assert.equal(x['氏名'], evil[i]);
+      assert.equal(x['棟'], evil[(i + 1) % evil.length]);
+      assert.equal(x['部屋番号'], evil[(i + 2) % evil.length]);
+    }
+    // 予約表・操作履歴にも式が入らない
+    for (const n of env.sheetNames()) {
+      const g = env.formulas(n);
+      assert.ok(g.every((row) => row.every((x) => !x)), `${n} に式が入った`);
+    }
+  });
+});
+
+test('[S-083] 電話番号の先頭0が消えない', async (t) => {
+  await withSpec(t, async (env) => {
+    const phones = ['09012345678', '0312345678', '03-1234-5678', '+81-90-1234-5678', '0120 123 456'];
+    for (let i = 0; i < phones.length; i++) {
+      const r = await env.register({ date: `2026-11-${11 + i}`, phone: phones[i] });
+      assert.equal(r.status, 'CONFIRMED', JSON.stringify(r));
+      const x = env.resById(r.reservationId);
+      assert.equal(typeof x['電話番号'], 'string');
+      assert.equal(x['電話番号'], phones[i]);
+    }
+    const list = await env.admin('api_admin_list', { from: '2026-11-11', to: '2026-11-15' });
+    assert.deepEqual(list.reservations.map((x) => x.phone).sort(), phones.slice().sort());
+  });
+});
+
+test('[S-084] 部屋番号・棟が数や日付に変わらない', async (t) => {
+  await withSpec(t, async (env) => {
+    const cases = [['101', 'A棟'], ['10/20', '1'], ['1-2', '2026-11-20'], ['0101', 'TRUE'], ['1,234', '50%']];
+    for (let i = 0; i < cases.length; i++) {
+      const r = await env.register({ date: `2026-11-${11 + i}`, room: cases[i][0], building: cases[i][1] });
+      assert.equal(r.status, 'CONFIRMED');
+      const x = env.resById(r.reservationId);
+      assert.equal(x['部屋番号'], cases[i][0]);
+      assert.equal(x['棟'], cases[i][1]);
+    }
+    assert.equal(env.host.store.conversionLog.length, 0, `文字が自動で変換された: ${JSON.stringify(env.host.store.conversionLog.slice(0, 5))}`);
+  });
+});
+
+test('[S-085] 棟は空でも登録できる', async (t) => {
+  await withSpec(t, async (env) => {
+    const r = await env.register({ date: D, building: '' });
+    assert.equal(r.status, 'CONFIRMED');
+  });
+});
+
+test('[S-086] 画面へ返る値に Date が無い', async (t) => {
+  await withSpec(t, async (env) => {
+    const req = env.regReq({ date: D, email: 'x@example.net' });
+    const rs = [
+      await env.register(req),
+      await env.avail('2026-11-14', '2026-12-14'),
+      await env.adminAvail('2026-11-09', '2026-12-09'),
+      await env.admin('api_admin_list', { from: D, to: D }),
+      await env.admin('api_admin_list', { text: req.name }),
+      await env.admin('api_admin_callList'),
+      await env.admin('api_admin_blockList', {}),
+      await env.admin('api_admin_monthTable', { month: '2026-11' }),
+      await env.admin('api_admin_addBlock', { requestId: rid(), from: '2026-11-21', to: '2026-11-21', slots: ['S1'], spaces: ['91'], reason: '行事', memo: '', confirm: false }),
+      await env.pub('api_getRequestStatus', { requestId: req.requestId }),
+      await env.pub('api_admin_login', { email: ADMIN.email, secret: ADMIN.secret }),
+    ];
+    rs.forEach((r, i) => assert.ok(!hasDate(r), `${i} 番目の応答に Date がある`));
+  });
+});

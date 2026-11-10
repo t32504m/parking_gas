@@ -1,0 +1,208 @@
+--- 前/docs/REQUIREMENTS.md
++++ 後/docs/REQUIREMENTS.md
+@@ -70,7 +70,7 @@
+ ID	要件
+ U-01	カレンダーから利用日を選択できる
+ U-02	日付ごとの空き状況を把握できる
+-U-03	選択日の各コマについて、時間帯・料金・残り台数を確認できる
++U-03	選択日の各コマについて、時間帯・料金と、空きがあるかどうかを確認できる（残り台数は住民に見せない。管理者は確認できる）
+ U-04	希望するコマと必要情報を入力して申し込める
+ U-05	送信前に、日付・時間・料金などの内容を確認できる
+ U-06	受付のみの状態と、予約確定の状態を明確に区別する
+--- 前/docs/requirements-index.json
++++ 後/docs/requirements-index.json
+@@ -3,7 +3,7 @@
+   "items": [
+     { "id": "U-01", "stage": 1, "text": "カレンダーから利用日を選択できる" },
+     { "id": "U-02", "stage": 1, "text": "日付ごとの空き状況を把握できる" },
+-    { "id": "U-03", "stage": 1, "text": "各コマの時間帯・料金・残り台数を確認できる" },
++    { "id": "U-03", "stage": 1, "text": "各コマの時間帯・料金と、空きがあるかどうかを確認できる（残り台数は住民に見せない。管理者は確認できる）" },
+     { "id": "U-04", "stage": 1, "text": "コマと必要情報を入力して申し込める" },
+     { "id": "U-05", "stage": 1, "text": "送信前に内容を確認できる" },
+     { "id": "U-06", "stage": 1, "text": "受付のみと予約確定を区別する" },
+--- 前/tests/acceptance/01_basic.test.js
++++ 後/tests/acceptance/01_basic.test.js
+@@ -8,7 +8,20 @@
+ const nextDay = (d) => new Date(Date.parse(`${d}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+ const slot = (av, date, id) => av.days.find((d) => d.date === date)?.slots.find((s) => s.slotId === id);
+ 
+-test('[U-02][U-03][5章] 空き状況に4コマの時間帯・料金・残り台数が出る', async (t) => withEnv(t, async (env) => {
++// 住民には残り台数を見せない（U-03、2026-11-09 依頼者の決定）。数は台帳で数える
++const CAP = 3; // 受入試験の前提（HARNESS_PREMISE）の1コマの台数
++const ymdT = (v) => (v instanceof Date ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(v) : String(v).slice(0, 10));
++/** 台帳の有効な割当ての数 */
++const used = (env, date, slotId) => env.table('allocations').rows.filter((a) =>
++  env.contract.ledger.allocations.activeStates.includes(String(a.state)) && ymdT(a.date) === date && String(a.slot_id) === slotId).length;
++/** 住民の応答の1コマ：available が期待どおりで、数を持たない */
++function residentSlot(s, expectAvailable, label) {
++  assert.ok(s, `${label}: コマが無い`);
++  assert.equal(s.available, expectAvailable, `${label}: available が ${s.available}`);
++  assert.ok(!('remaining' in s) && !('capacity' in s), `${label}: 住民の応答に台数の数がある`);
++}
++
++test('[U-02][U-03][5章] 空き状況に4コマの時間帯・料金・空きの有無が出る（台数の数は出ない）', async (t) => withEnv(t, async (env) => {
+   const av = await env.adapter.getAvailability(env.host, { from: DAY, to: DAY }, ACTORS.anonymous);
+   const day = av.days.find((d) => d.date === DAY);
+   assert.ok(day, `${DAY} の空き情報が無い`);
+@@ -16,9 +29,11 @@
+   for (const s of day.slots) {
+     const def = CONTRACT.slots[s.slotId];
+     assert.equal(Number(s.price), def.price, `${s.slotId} の料金`);
+-    assert.equal(Number(s.capacity), 3, `${s.slotId} の台数`);
+-    assert.equal(Number(s.remaining), 3, `${s.slotId} の残り`);
++    residentSlot(s, true, s.slotId);
++    assert.equal(used(env, DAY, s.slotId), 0, `${s.slotId} の台帳の割当て`);
+   }
++  const raw = JSON.stringify(av.raw);
++  assert.ok(!raw.includes('"remaining"') && !raw.includes('"capacity"'), '住民の応答に台数の数がある');
+ }));
+ 
+ test('[5章][11正常] 第4コマは翌日8:00終了・600円として扱われる', async (t) => withEnv(t, async (env) => {
+@@ -36,7 +51,9 @@
+   assert.equal(end, Date.parse(`${nextDay(DAY)}T08:00:00+09:00`), `台帳の終了日時 ${row.end_at}`);
+   // 翌日の第1コマは別枠として空いている
+   const av2 = await env.adapter.getAvailability(env.host, { from: nextDay(DAY), to: nextDay(DAY) }, ACTORS.anonymous);
+-  assert.equal(Number(slot(av2, nextDay(DAY), 'S1').remaining), 3, 'S4 が翌日 S1 の枠を消費してはいけない');
++  assert.equal(used(env, DAY, 'S4'), 1, '当日 S4 の割当て');
++  assert.equal(used(env, nextDay(DAY), 'S1'), 0, 'S4 が翌日 S1 の枠を消費してはいけない');
++  residentSlot(slot(av2, nextDay(DAY), 'S1'), true, '翌日 S1');
+ }));
+ 
+ test('[U-04][U-06][6.4] オンライン申込みで確定し、台帳に必要項目が残る', async (t) => withEnv(t, async (env) => {
+@@ -52,7 +69,8 @@
+   assert.equal(Number(row.price_total), 600, '300円×2台');
+   assert.ok(row.created_at !== '' && row.created_at !== undefined, 'システム受付日時が無い');
+   const av = await env.adapter.getAvailability(env.host, { from: DAY, to: DAY }, ACTORS.anonymous);
+-  assert.equal(Number(slot(av, DAY, 'S2').remaining), 1);
++  assert.equal(used(env, DAY, 'S2'), CAP - 1, '2台で残り1台');
++  residentSlot(slot(av, DAY, 'S2'), true, 'S2（残り1台）');
+ }));
+ 
+ test('[A-02][A-03][6.6] 電話受付の代行登録はメールなしで確定できる', async (t) => withEnv(t, async (env) => {
+@@ -69,7 +87,8 @@
+   const b = await env.adapter.adminRegister(env.host, env.req(R[4], { slotId: 'S1', channel: 'COUNTER', email: undefined }), ACTORS.admin);
+   assert.equal(a.status, 'CONFIRMED'); assert.equal(b.status, 'CONFIRMED');
+   const av = await env.adapter.getAvailability(env.host, { from: DAY, to: DAY }, ACTORS.anonymous);
+-  assert.equal(Number(slot(av, DAY, 'S1').remaining), 1);
++  assert.equal(used(env, DAY, 'S1'), CAP - 1, 'オンラインと代行登録で2台');
++  residentSlot(slot(av, DAY, 'S1'), true, 'S1（残り1台）');
+   const list = await env.adapter.adminList(env.host, { date: DAY }, ACTORS.admin);
+   const ids = list.reservations.filter((x) => x.state === 'CONFIRMED').map((x) => String(x.reservationId));
+   assert.ok(ids.includes(String(a.reservationId)) && ids.includes(String(b.reservationId)), 'オンラインと代行登録の両方が一覧に出ること');
+@@ -83,10 +102,13 @@
+   }
+   const full = await env.adapter.submit(env.host, env.req(R[8], { slotId: 'S3' }), R[8]);
+   assert.equal(full.status, 'REJECTED', '満車なのに不成立にならない');
++  const avFull = await env.adapter.getAvailability(env.host, { from: DAY, to: DAY }, ACTORS.anonymous);
++  residentSlot(slot(avFull, DAY, 'S3'), false, 'S3（満車）');
+   const c = await env.adapter.adminCancel(env.host, { reservationId: ids[1], reason: '本人から電話で取消し', requestId: `cx-${ids[1]}` }, ACTORS.admin);
+   assert.equal(c.status, 'CANCELLED', JSON.stringify(c.raw));
+   const av = await env.adapter.getAvailability(env.host, { from: DAY, to: DAY }, ACTORS.anonymous);
+-  assert.equal(Number(slot(av, DAY, 'S3').remaining), 1);
++  assert.equal(used(env, DAY, 'S3'), CAP - 1, '取消し後の割当て');
++  residentSlot(slot(av, DAY, 'S3'), true, 'S3（取消し後）');
+   const again = await env.adapter.submit(env.host, env.req(R[8], { slotId: 'S3' }), R[8]);
+   assert.equal(again.status, 'CONFIRMED');
+ }));
+--- 前/tests/acceptance/02_concurrency.test.js
++++ 後/tests/acceptance/02_concurrency.test.js
+@@ -11,6 +11,19 @@
+ const RACE = { latency: { min: 2, max: 20 } };
+ const slot = (av, id) => av.days.find((d) => d.date === DAY).slots.find((s) => s.slotId === id);
+ 
++// 住民には残り台数を見せない（U-03、2026-11-09 依頼者の決定）。数は台帳で数える
++const CAP = 3; // 受入試験の前提（HARNESS_PREMISE）の1コマの台数
++const ymdT = (v) => (v instanceof Date ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(v) : String(v).slice(0, 10));
++/** 台帳の有効な割当ての数 */
++const used = (env, date, slotId) => env.table('allocations').rows.filter((a) =>
++  env.contract.ledger.allocations.activeStates.includes(String(a.state)) && ymdT(a.date) === date && String(a.slot_id) === slotId).length;
++/** 住民の応答の1コマ：available が期待どおりで、数を持たない */
++function residentSlot(s, expectAvailable, label) {
++  assert.ok(s, `${label}: コマが無い`);
++  assert.equal(s.available, expectAvailable, `${label}: available が ${s.available}`);
++  assert.ok(!('remaining' in s) && !('capacity' in s), `${label}: 住民の応答に台数の数がある`);
++}
++
+ async function fillTo(env, slotId, n) {
+   for (let i = 0; i < n; i++) {
+     const r = await env.adapter.submit(env.host, env.req(R[11 - i], { slotId }), R[11 - i]);
+@@ -53,9 +66,12 @@
+ test('[6.5][11競合] 古い空き画面（残りありと表示）から申し込んでも、満車なら確定しない', async (t) => withEnv(t, async (env) => {
+   await fillTo(env, 'S3', 2);
+   const before = await env.adapter.getAvailability(env.host, { from: DAY, to: DAY }, ACTORS.anonymous);
+-  assert.equal(Number(slot(before, 'S3').remaining), 1);
++  assert.equal(used(env, DAY, 'S3'), CAP - 1, '準備の後の割当て');
++  residentSlot(slot(before, 'S3'), true, 'S3（残り1台）');
+   const other = await env.adapter.submit(env.host, env.req(R[0], { slotId: 'S3' }), R[0]);
+   assert.equal(other.status, 'CONFIRMED');
++  const after = await env.adapter.getAvailability(env.host, { from: DAY, to: DAY }, ACTORS.anonymous);
++  residentSlot(slot(after, 'S3'), false, 'S3（他の人が確定した後）');
+   // R[1] は「残り1」と表示された古い画面のまま申し込む
+   const stale = await env.adapter.submit(env.host, env.req(R[1], { slotId: 'S3' }), R[1]);
+   assert.equal(stale.status, 'REJECTED', `古い画面からの申込みが ${stale.status} になった`);
+@@ -75,7 +91,8 @@
+       const confirmedNew = [n1, n2].filter((r) => r.status === 'CONFIRMED').length;
+       assert.ok(confirmedNew <= 1, `空いたのは1台なのに ${confirmedNew} 件確定`);
+       const av = await env.adapter.getAvailability(env.host, { from: DAY, to: DAY }, ACTORS.anonymous);
+-      assert.equal(Number(slot(av, 'S4').remaining), 1 - confirmedNew, '表示上の残り台数が台帳と合わない');
++      assert.equal(used(env, DAY, 'S4'), CAP - 1 + confirmedNew, '台帳の割当ての数が合わない');
++      residentSlot(slot(av, 'S4'), confirmedNew === 0, 'S4（取消しと新規の後）');
+     });
+   }
+ });
+--- 前/tests/acceptance/04_faults.test.js
++++ 後/tests/acceptance/04_faults.test.js
+@@ -7,6 +7,19 @@
+ const R = ACTORS.residents;
+ const slot = (av, id) => av.days.find((d) => d.date === DAY).slots.find((s) => s.slotId === id);
+ 
++// 住民には残り台数を見せない（U-03、2026-11-09 依頼者の決定）。数は台帳で数える
++const CAP = 3; // 受入試験の前提（HARNESS_PREMISE）の1コマの台数
++const ymdT = (v) => (v instanceof Date ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(v) : String(v).slice(0, 10));
++/** 台帳の有効な割当ての数 */
++const used = (env, date, slotId) => env.table('allocations').rows.filter((a) =>
++  env.contract.ledger.allocations.activeStates.includes(String(a.state)) && ymdT(a.date) === date && String(a.slot_id) === slotId).length;
++/** 住民の応答の1コマ：available が期待どおりで、数を持たない */
++function residentSlot(s, expectAvailable, label) {
++  assert.ok(s, `${label}: コマが無い`);
++  assert.equal(s.available, expectAvailable, `${label}: available が ${s.available}`);
++  assert.ok(!('remaining' in s) && !('capacity' in s), `${label}: 住民の応答に台数の数がある`);
++}
++
+ test('[6.5][11障害] ロックを取得できないとき、確定したと表示せず、枠も確保しない', async (t) => withEnv(t, async (env) => {
+   env.host.setFaults({ lock: { mode: 'timeout' } });
+   const req = env.req(R[0], { slotId: 'S1' });
+@@ -38,7 +51,8 @@
+       const again = await env.adapter.submit(env.host, req, R[1]);
+       assert.equal(again.status, 'CONFIRMED', `書込み${k}回目の失敗後、再送の結果が ${again.status}`);
+       const av = await env.adapter.getAvailability(env.host, { from: DAY, to: DAY }, ACTORS.anonymous);
+-      assert.equal(Number(slot(av, 'S2').remaining), 2, `書込み${k}回目の失敗後、残り台数がずれた`);
++      assert.equal(used(env, DAY, 'S2'), 1, `書込み${k}回目の失敗後、割当ての数がずれた`);
++      residentSlot(slot(av, 'S2'), true, `書込み${k}回目の失敗後の S2`);
+     });
+     if (!reached) break; // 書込み回数がこれより少ない実装では、以降の k は意味がない
+   }
+--- 前/harness/selftest/fixtures/safe/gas/Code.gs
++++ 後/harness/selftest/fixtures/safe/gas/Code.gs
+@@ -147,7 +147,7 @@
+       days.push({ date: date, slots: Object.keys(SLOTS).map(function (id) {
+         var t = slotTimes_(date, id);
+         var used = all.filter(function (a) { return String(a.date) === date && a.slot_id === id; }).length;
+-        return { slotId: id, start: iso_(t.start), end: iso_(t.end), price: SLOTS[id].price, capacity: SPACES.length, remaining: SPACES.length - used };
++        return { slotId: id, start: iso_(t.start), end: iso_(t.end), price: SLOTS[id].price, available: used < SPACES.length };
+       }) });
+     }
+     return { status: 'OK', days: days };
+--- 前/harness/selftest/fixtures/safe/gas/Index.html
++++ 後/harness/selftest/fixtures/safe/gas/Index.html
+@@ -45,8 +45,8 @@
+       day.slots.forEach(function (s) {
+         var b = document.createElement('button');
+         b.className = 'slot'; b.type = 'button';
+-        b.textContent = s.slotId + ' ' + s.start.slice(11, 16) + '〜' + s.end.slice(11, 16) + ' ' + s.price + '円 残り' + s.remaining + '台' + (s.remaining ? '' : '（満車）');
+-        b.disabled = !s.remaining;
++        b.textContent = s.slotId + ' ' + s.start.slice(11, 16) + '〜' + s.end.slice(11, 16) + ' ' + s.price + '円' + (s.available ? ' 空きあり' : ' 満車');
++        b.disabled = !s.available;
+         b.onclick = function () { chosen = s; el('f').style.display = 'block'; el('result').textContent = s.slotId + ' を選びました'; };
+         el('slots').appendChild(b);
+       });

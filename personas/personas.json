@@ -1,0 +1,253 @@
+{
+  "_readme": "評価に使うペルソナと課題。実装AIはこのファイルを変更しない（変更は人間の判断で行い、docs/DECISIONS.md に記録）。constraints はハーネスが機械的に適用する制約、profile は評価役AIが演じるための人物像。verify は課題の達成を台帳で客観判定する条件。",
+  "personas": [
+    {
+      "id": "elder-resident",
+      "name": "高橋 フミ（78歳・住民）",
+      "role": "resident",
+      "profile": "一人暮らし。息子に勧められてスマホを使い始めて2年。LINE と電話はできるが、知らない画面では『押して壊れたら困る』と手が止まる。老眼で、小さい文字は読まない。カタカナ語・英語・記号の意味は推測しない。以前は自治会長に電話で頼んでいたので、画面で済むなら嬉しいが、ちゃんと予約できたか不安になりやすい。娘夫婦が週末に車で来るので駐車場を使う。",
+      "device": "iPhone SE",
+      "constraints": {
+        "minReadablePx": 16,
+        "maxSteps": 25,
+        "unfamiliarWords": [
+          "スロット",
+          "ステータス",
+          "リクエスト",
+          "ID",
+          "サブミット",
+          "送信",
+          "エラー",
+          "トークン",
+          "ログイン",
+          "認証",
+          "S1",
+          "S2",
+          "S3",
+          "S4",
+          "PENDING",
+          "CONFIRMED",
+          "REJECTED"
+        ],
+        "grayscale": false,
+        "network": "normal"
+      },
+      "tasks": [
+        {
+          "id": "book-evening",
+          "text": "10月25日（日）の夕方5時から翌朝まで、駐車場を1台予約してください。名前は高橋フミ、A棟 302号室、電話 090-2222-3333。メールアドレスは持っていません。予約できたら、何をメモしておけばよいか確認してください。",
+          "verify": {
+            "type": "reservation",
+            "date": "2026-10-25",
+            "slotId": "S4",
+            "quantity": 1,
+            "nameIncludes": "高橋",
+            "states": [
+              "CONFIRMED"
+            ]
+          }
+        },
+        {
+          "id": "full-slot",
+          "text": "10月24日（土）の夕方から翌朝も使いたいと娘に言われました。空いているか確かめて、空いていなければどうすればよいか考えてください。",
+          "verify": {
+            "type": "noReservation",
+            "date": "2026-10-24",
+            "slotId": "S4",
+            "nameIncludes": "高橋"
+          }
+        }
+      ]
+    },
+    {
+      "id": "busy-parent",
+      "name": "佐藤 健太（42歳・住民）",
+      "role": "resident",
+      "profile": "共働きで小学生2人の父。通勤電車で片手でスマホを操作する。説明文は読まず、見えたボタンを押して進む。3回以上迷うと『後で電話すればいいか』とやめてしまう。予約番号はスクショで残す派。",
+      "device": "Pixel 7",
+      "constraints": {
+        "minReadablePx": 14,
+        "maxSteps": 12,
+        "unfamiliarWords": [
+          "PENDING",
+          "CONFIRMED",
+          "REJECTED"
+        ],
+        "grayscale": false,
+        "network": "normal"
+      },
+      "tasks": [
+        {
+          "id": "book-two",
+          "text": "10月26日（月）の朝8時から11時まで、車2台分を予約してください（実家の両親と自分の車）。佐藤健太、B棟 507号室、電話 080-1234-5678、メール kenta.sato@example.net。",
+          "verify": {
+            "type": "reservation",
+            "date": "2026-10-26",
+            "slotId": "S1",
+            "quantity": 2,
+            "nameIncludes": "佐藤",
+            "states": [
+              "CONFIRMED"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "unstable-network",
+      "name": "井上 真理（35歳・住民・地下駐輪場で電波が弱い）",
+      "role": "resident",
+      "profile": "スマホ操作には慣れている。地下で操作することが多く、通信が途中で切れることがよくある。『二重に予約されて二重に払う』のが一番嫌。結果が分からないときは、画面の案内どおりに確かめたい。",
+      "device": "iPhone 13",
+      "constraints": {
+        "minReadablePx": 12,
+        "maxSteps": 15,
+        "unfamiliarWords": [],
+        "grayscale": false,
+        "network": "dropFirstSubmitResponse"
+      },
+      "tasks": [
+        {
+          "id": "book-with-drop",
+          "text": "10月27日（火）の11時から14時まで、1台予約してください。井上真理、C棟 110号室、電話 070-5555-6666。途中で通信が切れたら、予約できたのかを確かめ、二重に予約しないようにしてください。",
+          "verify": {
+            "type": "reservation",
+            "date": "2026-10-27",
+            "slotId": "S2",
+            "quantity": 1,
+            "nameIncludes": "井上",
+            "states": [
+              "CONFIRMED"
+            ],
+            "exactlyOne": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "colorblind-resident",
+      "name": "中川 亮（50歳・住民・色覚の特性あり）",
+      "role": "resident",
+      "profile": "赤と緑の区別がつきにくい。色だけで『空き/満車』を示されると判断できない。文字やマークがあれば問題なく使える。",
+      "device": "iPhone 13",
+      "constraints": {
+        "minReadablePx": 12,
+        "maxSteps": 15,
+        "unfamiliarWords": [],
+        "grayscale": true,
+        "network": "normal"
+      },
+      "tasks": [
+        {
+          "id": "find-free",
+          "text": "10月25日（日）で、まだ空いている時間帯をすべて確かめ、その中で一番早い時間帯を1台予約してください。中川亮、A棟 105号室、電話 090-7777-8888。",
+          "verify": {
+            "type": "reservation",
+            "date": "2026-10-25",
+            "slotId": "S1",
+            "quantity": 1,
+            "nameIncludes": "中川",
+            "states": [
+              "CONFIRMED"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "admin-phone",
+      "name": "山本 和子（67歳・自治会役員・管理者）",
+      "role": "admin",
+      "profile": "自治会の駐車場係を3年。パソコンは苦手で、スプレッドシートの直接編集は怖くてできない。電話を受けながら片手でスマホに入力する。相手を待たせたくないので、操作は短く、確定したかどうかがはっきり分からないと不安。紙のメモにも控えを書く習慣がある。",
+      "device": "iPhone SE",
+      "constraints": {
+        "minReadablePx": 16,
+        "maxSteps": 20,
+        "unfamiliarWords": [
+          "スロット",
+          "ステータス",
+          "リクエスト",
+          "トークン",
+          "サブミット",
+          "PENDING",
+          "CONFIRMED",
+          "REJECTED"
+        ],
+        "grayscale": false,
+        "network": "normal"
+      },
+      "tasks": [
+        {
+          "id": "proxy-register",
+          "text": "電話がありました。『B棟 205号室の中村です。10月25日（日）の11時から14時、1台お願いします。電話は 090-1212-3434、メールはありません』。代行登録して、確定したら相手に予約番号を伝えてください。",
+          "verify": {
+            "type": "reservation",
+            "date": "2026-10-25",
+            "slotId": "S2",
+            "quantity": 1,
+            "nameIncludes": "中村",
+            "states": [
+              "CONFIRMED"
+            ],
+            "channelIn": [
+              "PHONE",
+              "COUNTER"
+            ]
+          }
+        },
+        {
+          "id": "proxy-cancel",
+          "text": "続けて電話がありました。『10月25日（日）14時からの予約を取り消したい』とのことです（電話受付で登録済みの1件）。取り消して、理由として『本人から電話』と残してください。",
+          "verify": {
+            "type": "cancelled",
+            "date": "2026-10-25",
+            "slotId": "S3"
+          }
+        }
+      ]
+    },
+    {
+      "id": "admin-desk",
+      "name": "前田 誠（58歳・自治会会計・管理者・PC）",
+      "role": "admin",
+      "profile": "自治会の会計係で、週末に自宅のPCで駐車場の予約をまとめて確認する。表計算ソフトは使えるが、新しい画面の説明を読むのは面倒で、全体がどうなっているかを一目でつかめないと苛立つ。何度も画面を行き来させられるのが嫌い。",
+      "device": "Desktop Chrome",
+      "constraints": {
+        "minReadablePx": 14,
+        "maxSteps": 12,
+        "unfamiliarWords": [
+          "スロット",
+          "ステータス",
+          "リクエスト",
+          "トークン",
+          "サブミット",
+          "PENDING",
+          "CONFIRMED",
+          "REJECTED"
+        ],
+        "grayscale": false,
+        "network": "normal"
+      },
+      "tasks": [
+        {
+          "id": "week-overview-register",
+          "text": "今週（10月19日〜25日）の予約状況を見て、夜（17時〜翌朝8時）にまだ1台も予約が入っていない日のうち、一番遅い日を探してください。その日の夜に、電話で受けた予約（D棟 401号室 森 和夫さん、電話 090-3434-5656、1台、メールなし）を登録してください。",
+          "verify": {
+            "type": "reservation",
+            "date": "2026-10-25",
+            "slotId": "S4",
+            "quantity": 1,
+            "nameIncludes": "森",
+            "states": [
+              "CONFIRMED"
+            ],
+            "channelIn": [
+              "PHONE",
+              "COUNTER"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

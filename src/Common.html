@@ -1,0 +1,127 @@
+<script>
+/* 利用者画面・管理者画面で共通の部品 */
+var App = window.App || {};
+(function () {
+  'use strict';
+  var WD = ['日', '月', '火', '水', '木', '金', '土'];
+
+  App.esc = function (s) {
+    return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+  App.$ = function (id) { return document.getElementById(id); };
+  App.on = function (root, sel, fn) {
+    Array.prototype.forEach.call(root.querySelectorAll(sel), function (el) { el.addEventListener('click', function (e) { fn(el, e); }); });
+  };
+
+  /** サーバーの関数を呼ぶ（成功・失敗のどちらかで必ず終わる） */
+  App.call = function (fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      var runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+      runner[fn].apply(runner, args);
+    });
+  };
+
+  /** 受付要求ID（再送しても同じ申込みと分かるようにする） */
+  App.newRequestId = function () {
+    var a = new Uint8Array(12);
+    window.crypto.getRandomValues(a);
+    return 'rq-' + Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+  };
+
+  App.session = {
+    get: function (k) { try { return window.sessionStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { window.sessionStorage.setItem(k, v); } catch (e) { /* 使えなくても動く */ } },
+    del: function (k) { try { window.sessionStorage.removeItem(k); } catch (e) { /* 同上 */ } },
+  };
+  App.local = {
+    get: function (k) { try { return JSON.parse(window.localStorage.getItem(k) || 'null'); } catch (e) { return null; } },
+    set: function (k, v) { try { window.localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 同上 */ } },
+  };
+
+  // ---------------------------------------------------------------- 日付
+  App.parse = function (s) { var p = s.split('-'); return { y: +p[0], m: +p[1], d: +p[2] }; };
+  App.ymd = function (y, m, d) { return y + '-' + ('0' + m).slice(-2) + '-' + ('0' + d).slice(-2); };
+  App.dow = function (s) { var p = App.parse(s); return new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay(); };
+  App.wd = function (s) { return WD[App.dow(s)]; };
+  App.addDays = function (s, n) {
+    var p = App.parse(s); var d = new Date(Date.UTC(p.y, p.m - 1, p.d + n));
+    return App.ymd(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+  };
+  App.md = function (s) { var p = App.parse(s); return p.m + '月' + p.d + '日（' + App.wd(s) + '）'; };
+  App.ymdText = function (s) { var p = App.parse(s); return p.y + '年' + App.md(s); };
+  App.yen = function (n) { return Number(n).toLocaleString('ja-JP') + '円'; };
+  /** 'yyyy-MM' の n か月先（前） */
+  App.shiftMonth = function (m, n) { var y = +m.slice(0, 4), mo = +m.slice(5, 7) - 1 + n; y += Math.floor(mo / 12); mo = ((mo % 12) + 12) % 12; return y + '-' + ('0' + (mo + 1)).slice(-2); };
+
+  /** 時間帯の短い表記（例：17時〜翌朝8時） */
+  var SLOT_SHORT = { S1: '8〜11時', S2: '11〜14時', S3: '14〜17時', S4: '17時〜翌朝8時' };
+  App.slotShort = function (id) { return SLOT_SHORT[id] || ''; };
+  /** 電話口・予約表での呼び名（A〜D） */
+  var SLOT_MARK = { S1: 'A', S2: 'B', S3: 'C', S4: 'D' };
+  App.slotMark = function (id) { return SLOT_MARK[id] || ''; };
+  /** 画面に添える呼び名の札（HTML） */
+  App.markTag = function (id) { return '<span class="sm">' + App.slotMark(id) + '</span>'; };
+  App.slotName = function (s) { return App.slotMark(s.slotId) + ' ' + s.label + ' ' + App.slotShort(s.slotId); };
+  /** 夜は翌日の朝までであることを日付で示す */
+  App.slotLong = function (date, s) {
+    return App.slotMark(s.slotId) + ' ' + s.label + ' ' + s.timeText + (s.slotId === 'S4' ? '（' + App.md(App.addDays(date, 1)) + 'の朝まで）' : '');
+  };
+
+  /** 表の行の日付の表記 */
+  App.dayCell = function (date, today) {
+    var p = App.parse(date); var w = App.dow(date);
+    var cls = 'day' + (w === 0 ? ' sun' : w === 6 ? ' sat' : '');
+    return { cls: cls, html: '<span class="num">' + p.m + '/' + p.d + '</span> <span class="wd">' + WD[w] + (date === today ? '<span class="today-tag">今日</span>' : '') + '</span>' };
+  };
+
+  App.kv = function (rows) {
+    return '<dl class="kv">' + rows.map(function (r) { return '<div><dt>' + App.esc(r[0]) + '</dt><dd>' + r[1] + '</dd></div>'; }).join('') + '</dl>';
+  };
+  /** 作業の枠の見出しと「閉じる」 */
+  App.head = function (title) { return '<div class="phead"><h2 id="h-panel">' + App.esc(title) + '</h2><button type="button" class="btn plain" id="close">閉じる</button></div>'; };
+  App.busy = function (text) { return '<div class="busy" role="status"><span class="spin" aria-hidden="true"></span>' + App.esc(text) + '</div>'; };
+  App.note = function (kind, title, text) {
+    return '<div class="note ' + kind + '" role="' + (kind === 'ok' ? 'status' : 'alert') + '"><b>' + App.esc(title) + '</b>' + (text ? App.esc(text) : '') + '</div>';
+  };
+
+  /** 名前・部屋番号・電話番号・メールの入力の誤り（住民の申込み・管理者の登録と変更で同じ）。p は入力欄の id の頭 */
+  App.personErrors = function (f, p) {
+    var e = {};
+    if (!f.name) e[p + 'name'] = 'お名前を入れてください';
+    if (!f.room) e[p + 'room'] = '部屋番号を入れてください';
+    if (!f.phone) e[p + 'phone'] = '電話番号を入れてください';
+    else if (f.phone.replace(/[^0-9０-９]/g, '').length < 6) e[p + 'phone'] = '電話番号を数字で入れてください';
+    if (f.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email)) e[p + 'email'] = 'メールの形が違います';
+    return e;
+  };
+
+  /** 入力欄の誤りを表示する。errors: { 欄のid: 文 } */
+  App.showErrors = function (root, errors) {
+    Array.prototype.forEach.call(root.querySelectorAll('.err'), function (e) { e.remove(); });
+    Array.prototype.forEach.call(root.querySelectorAll('[aria-invalid]'), function (e) { e.removeAttribute('aria-invalid'); });
+    var first = null;
+    Object.keys(errors).forEach(function (id) {
+      var input = App.$(id); if (!input) return;
+      input.setAttribute('aria-invalid', 'true');
+      var p = document.createElement('p'); p.className = 'err'; p.id = id + '-err'; p.textContent = errors[id];
+      input.setAttribute('aria-describedby', p.id);
+      input.parentNode.appendChild(p);
+      if (!first) first = input;
+    });
+    if (first) first.focus();
+    return !first;
+  };
+
+  /** 要素を見える位置に出し、読み上げの起点にする */
+  App.reveal = function (el) {
+    if (!el) return;
+    el.setAttribute('tabindex', '-1');
+    el.focus({ preventScroll: true });
+    el.scrollIntoView({ block: 'start', behavior: 'auto' });
+  };
+  window.App = App;
+}());
+</script>

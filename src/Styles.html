@@ -1,0 +1,426 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&amp;display=swap">
+<style>
+/*
+  駐車場予約の画面。
+  - 文字は丸ゴシック（自治会の掲示や案内でなじみのある字）。読めなければ端末の丸ゴシック・UDゴシック・ゴシックへ。
+  - 空いていることは静かに、予約・満車・選んだ所だけが浮かび上がるようにする。
+  - 枠線で囲まない。主の操作だけを塗りのボタンにし、ほかは淡い地のボタン。
+  - 色は駐車場から：芝の緑（操作・空き）、白線の山吹（今日・選んだ所）、えんじ（満車・取消し）。
+*/
+:root {
+  --bg: #f6f7f4;           /* 下地 */
+  --paper: #ffffff;        /* 表・入力の面 */
+  --ink: #29302c;          /* 文字 */
+  --ink-2: #5b645f;        /* 補足の文字 */
+  --ink-3: #8b948f;        /* ごく弱い文字 */
+  --line: #e4e8e5;         /* 罫線 */
+  --line-2: #c9d1cc;       /* 入力の枠 */
+  --green: #2a6f53;        /* 操作 */
+  --green-dk: #1f5640;
+  --green-50: #e9f2ed;     /* 淡い緑（予約のある枠・副ボタン） */
+  --green-100: #d6e8de;
+  --amber: #d9962a;        /* 今日・選んだ所 */
+  --amber-50: #fdf3df;
+  --red: #a8383b;          /* 満車・取消し */
+  --red-50: #f9e9e8;
+  --shade: #eff1ee;        /* 受付外 */
+  --r: 12px;
+  /* 日本語の字形を必ず使う（中国語の字形に落ちないよう、日本語フォントだけを並べ、system-ui は使わない） */
+  font-family: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "BIZ UDPGothic", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", YuGothic, Meiryo, "Noto Sans CJK JP", "Noto Sans JP", sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-size: 17px; line-height: 1.7; font-weight: 500; letter-spacing: 0.02em; }
+[hidden] { display: none !important; }
+button, input, select { font: inherit; color: inherit; letter-spacing: inherit; }
+:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+b, strong, h1, h2, h3 { font-weight: 700; }
+
+/* 上部 */
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; background: var(--paper); border-bottom: 1px solid var(--line); }
+.bar h1 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 20px; line-height: 1.3; letter-spacing: 0.06em; }
+.bar h1 .mark { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; background: var(--green); color: #fff; font-size: 19px; line-height: 1; letter-spacing: 0; }
+.bar .who { font-size: 16px; color: var(--ink-2); }
+.bar .nowrap { flex-wrap: nowrap; }
+.bar h1 { white-space: nowrap; }
+.bar .t-calls { min-height: 44px; padding: 6px 14px; white-space: nowrap; }
+/* 利用者の週の移動 */
+.weeknav { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.weeknav h2 { margin: 0 auto 0 0; }
+@media (max-width: 899px) {
+  .weeknav #prev { order: 1; } .weeknav h2 { order: 2; flex: 1; margin: 0; text-align: center; font-size: 19px; } .weeknav #next { order: 3; }
+  /* スマホの前・次は山形だけ（名前は読み上げに残す） */
+  .t-prev .tx, .t-next .tx, .weeknav .tx { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .t-prev, .t-next, .weeknav .btn { width: 48px; padding: 0 !important; }
+  .t-prev::before, .weeknav #prev::before, .t-next::after, .weeknav #next::after { margin: 0; width: 11px; height: 11px; border-width: 0 0 3px 3px; }
+}
+.page { max-width: 1240px; margin: 0 auto; padding: 20px 20px 56px; }
+h2 { font-size: 21px; margin: 18px 0 10px; line-height: 1.45; }
+h3 { font-size: 18px; margin: 18px 0 8px; }
+p { margin: 8px 0; }
+.sub { color: var(--ink-2); font-size: 16px; }
+
+/* ボタン：主の操作だけ塗り。ほかは淡い地。枠線は使わない */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; min-width: 48px; padding: 8px 18px;
+  border: 0; border-radius: var(--r); background: var(--green-50); color: var(--green-dk); font-weight: 700; font-size: 17px; cursor: pointer; text-decoration: none; }
+.btn:hover { background: var(--green-100); }
+.btn.main { background: var(--green); color: #fff; min-height: 54px; }
+.btn.main:hover { background: var(--green-dk); }
+.btn.danger { background: var(--red); color: #fff; }
+.btn.danger:hover { background: #8e2d30; }
+.btn.plain { background: transparent; color: var(--green-dk); font-weight: 700; padding: 8px 12px; }
+.btn.plain:hover { background: var(--green-50); }
+.btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+.btn[disabled][aria-pressed="true"] { opacity: 1; }
+.btn.wide { width: 100%; }
+.btn[aria-pressed="true"] { background: var(--green); color: #fff; }
+/* 選んだしるし（文字を使わず線で描く） */
+.btn[aria-pressed="true"]::before { content: ""; width: 6px; height: 11px; margin: -3px 2px 0 0; border: solid currentColor; border-width: 0 3px 3px 0; transform: rotate(45deg); flex: none; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.panel .row .btn { flex: 1 1 auto; }
+
+/* 区画の番号（控えめに） */
+.plate { display: inline-flex; align-items: baseline; justify-content: center; gap: 1px; color: var(--ink-2); font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+.plate::after { content: "番" / ""; font-size: 0.8em; font-weight: 500; }
+.pick .plate, .kv .plate, .list .plate { padding: 0 8px; border-radius: 6px; background: var(--paper); color: var(--ink); }
+
+/* 表（共通）：縦の罫線は時間帯の区切りだけ。空いている所は静かに */
+.sheet { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; background: var(--paper); border-radius: 16px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+.sheet th, .sheet td { border-bottom: 1px solid var(--line); padding: 0; text-align: center; vertical-align: middle; }
+.sheet tbody tr:last-child th, .sheet tbody tr:last-child td { border-bottom: 0; }
+.sheet thead th { font-size: 17px; font-weight: 700; padding: 10px 2px 8px; line-height: 1.35; color: var(--ink); }
+.sheet thead .t { display: block; font-weight: 500; font-size: 16px; color: var(--ink-2); letter-spacing: 0; }
+.sheet .day { text-align: left; padding: 6px 10px 6px 14px; font-weight: 700; white-space: nowrap; }
+.sheet .day .wd { font-weight: 500; color: var(--ink-2); margin-left: 2px; }
+.sheet .day.sun .wd, .sheet .day.hol .wd { color: var(--red); }
+.sheet .day.sat .wd { color: #2c5ea8; }
+.sheet tr.today .day { box-shadow: inset 4px 0 0 var(--amber); }
+.sheet .day .num { display: inline-block; }
+.today-tag { display: inline-block; margin-left: 6px; color: #8a5a0c; font-size: 16px; font-weight: 700; }
+.sheet caption { caption-side: top; text-align: left; padding: 0 2px 8px; font-size: 16px; color: var(--ink-2); }
+@media (max-width: 899px) { .only-wide { display: none !important; } }
+@media (min-width: 900px) { .only-narrow { display: none !important; } }
+@media (max-width: 899px) {
+  .page { padding: 14px 16px 48px; }
+  .bar { padding: 10px 16px; }
+  .sheet .day { padding: 6px 4px 6px 10px; line-height: 1.3; }
+  .sheet .day .wd { display: block; margin: 0; }
+  .bar h1 { font-size: 18px; }
+  .bar h1 .mark { width: 26px; height: 26px; font-size: 16px; border-radius: 7px; }
+}
+.sheet .slotsep { box-shadow: inset 1px 0 0 var(--line); }
+
+/* 表の枠 */
+.cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; width: 100%; min-height: 60px; height: 100%; border: 0; background: transparent; cursor: pointer; padding: 6px 2px; font-size: 16px; line-height: 1.2; color: var(--ink); border-radius: 0; }
+.cell .mk { font-size: 24px; line-height: 1; font-weight: 700; }
+.cell .n { font-size: 16px; color: var(--ink-2); font-weight: 500; margin-top: 3px; }
+/* 利用者：空き（○）は静かな緑、残りわずか（△）は山吹、満車（×）はえんじ */
+.cell.free .mk { color: var(--green); }
+.cell.free:hover { background: var(--green-50); }
+.cell.full .mk { color: var(--red); }
+.cell.full .n { color: var(--red); }
+.cell.full { font: inherit; width: 100%; }
+.cell.full:hover { background: var(--red-50); }
+.cell.closed { background: var(--shade); cursor: default; }
+/* 過ぎた時間：灰色のまま押せる（管理者があとから直す） */
+.cell.past { background: var(--shade); }
+.cell.taken.past { background: var(--shade); }
+.cell.block.past { background: repeating-linear-gradient(135deg, var(--shade) 0 7px, #e3e3df 7px 9px); }
+span.cell.cap.past { cursor: default; }
+/* 管理者：住民の分は上限（2台）に達した。残りの区画は、管理者が使うときだけ押す */
+.cell.cap { color: var(--ink-2); font-size: 15px; font-weight: 500; }
+.cell.cap:hover { background: var(--green-50); }
+/* 管理者：使用禁止の枠は斜線の網かけ（受付時間外の無地の網かけと区別する） */
+.cell.block { color: #6e4808; font-size: 15px; font-weight: 700; background: repeating-linear-gradient(135deg, var(--amber-50) 0 7px, #fbe7c0 7px 9px); border-radius: 0; }
+.cell.block:hover { background: #fbe7c0; }
+/* 管理者：予約のある枠だけを淡い緑の札にする。空きは何も出さず、指を置くと「＋」 */
+.cell.taken { color: var(--ink); font-weight: 700; }
+.cell.add { color: transparent; }
+.cell.add::after { content: "＋" / ""; font-size: 22px; font-weight: 500; color: transparent; }
+.cell.add:hover { background: var(--green-50); }
+.cell.add:hover::after, .cell.add:focus-visible::after { color: var(--green); }
+@media (hover: none) { .cell.add::after { color: #cfd6d1; } }
+.cell.taken { box-shadow: inset 0 0 0 4px var(--paper); background: var(--green-50); border-radius: 10px; }
+.cell.taken:hover { background: var(--green-100); }
+.cell[aria-pressed="true"], .cell.picked { background: var(--amber-50) !important; box-shadow: inset 0 0 0 3px var(--amber) !important; border-radius: 10px; color: var(--ink); }
+.cell.picked::after, .cell[aria-pressed="true"]::after { color: #8a5a0c; }
+
+/* 住民：月のカレンダー。日ごとに1つの記号（○△×）。過ぎた日・範囲外の日は数字だけを淡く */
+.cal { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; background: var(--paper); border-radius: 16px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+.cal th { padding: 10px 0 6px; font-size: 16px; font-weight: 700; color: var(--ink-2); }
+.cal th.sun { color: var(--red); } .cal th.sat { color: #2c5ea8; }
+.cal td { padding: 2px; text-align: center; vertical-align: top; border-top: 1px solid var(--line); }
+.cday { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; width: 100%; min-height: 64px; padding: 6px 0 4px; border: 0; border-radius: 10px; background: transparent; font: inherit; color: var(--ink); cursor: pointer; line-height: 1.2; }
+.cday .dn { display: inline-flex; align-items: center; justify-content: center; min-width: 1.9em; height: 1.9em; border-radius: 999px; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cday.sun .dn { color: var(--red); } .cday.sat .dn { color: #2c5ea8; }
+.cday.today .dn { background: #8a5a0c; color: #fff; }
+.cday .mk { font-size: 24px; font-weight: 700; line-height: 1; }
+.cday.free .mk { color: var(--green); }
+.cday.full .mk { color: var(--red); }
+button.cday:hover { background: var(--green-50); }
+.cday[aria-pressed="true"] { background: var(--amber-50); box-shadow: inset 0 0 0 3px var(--amber); }
+.cday.past, .cday.out { cursor: default; }
+.cday.past .dn, .cday.out .dn { color: var(--ink-2); font-weight: 400; }
+/* 当日：灰色で押せないが、「今日」と分かる */
+.cday.out.today .dn { background: #8a5a0c; color: #fff; font-weight: 700; }
+.cday .tg { font-size: 16px; font-weight: 700; color: #8a5a0c; line-height: 1.2; }
+/* 幅の狭いスマホ（320px）でも、日の枠を44px以上にする */
+@media (max-width: 380px) { .cal { width: calc(100% + 24px); margin: 0 -12px; border-radius: 12px; } .cal td { padding: 2px 0; } }
+.cday.out { background: var(--shade); }
+
+/* 住民：選んだ日の4つの時間帯 */
+.dayview h2 { margin-top: 0; }
+.slots { list-style: none; margin: 0 0 16px; padding: 0; background: var(--paper); border-radius: 16px; box-shadow: 0 0 0 1px var(--line); }
+.slots li + li { border-top: 1px solid var(--line); }
+.slot { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 64px; padding: 10px 16px; border: 0; background: transparent; font: inherit; color: var(--ink); text-align: left; }
+button.slot { cursor: pointer; border-radius: 16px; }
+button.slot:hover { background: var(--green-50); }
+.slot .nm { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
+.slot .nm b { font-size: 19px; min-width: 2.6em; }
+.slot .t { color: var(--ink-2); font-size: 16px; font-weight: 500; }
+.slot .st { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; white-space: nowrap; }
+.slot .st .mk { font-size: 26px; line-height: 1; }
+.slot.free .st { color: var(--green-dk); } .slot.free .mk { color: var(--green); }
+.slot.full .st, .slot.full .mk { color: var(--red); }
+.slot.closed { background: var(--shade); border-radius: 0; }
+.slots li:first-child .slot.closed { border-radius: 16px 16px 0 0; }
+.slots li:last-child .slot.closed { border-radius: 0 0 16px 16px; }
+.slot.closed .st { color: var(--ink-2); font-weight: 500; }
+/* 電話で予約する */
+.btn.tel { flex-direction: column; gap: 2px; padding: 12px 16px; line-height: 1.4; }
+.btn.tel b { font-size: 19px; }
+.btn.tel span { font-size: 16px; font-weight: 500; }
+.btn.tel .nb { white-space: nowrap; }
+/* 一覧／カレンダーの切替え */
+/* 時間帯の呼び名（A〜D）の札 */
+.sm { display: inline-block; min-width: 1.5em; margin-right: 6px; padding: 0 4px; border: 1px solid var(--line-2); border-radius: 6px;
+  font-size: 16px; font-weight: 700; line-height: 1.35; text-align: center; color: var(--ink-2); vertical-align: 0.1em; }
+/* 住民の一覧の見出しは列が細いので、札を名前の上に置く（「午後」を折り返さない） */
+.resident .sheet thead th .sm { display: table; margin: 0 auto 4px; }
+.seg { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 10px; }
+.seg .btn { min-height: 44px; padding: 6px 14px; }
+/* 縦の一覧（住民の画面の既定） */
+.resident .sheet thead .t { font-size: 16px; line-height: 1.3; }
+.resident .sheet thead .t .nw { display: inline-block; white-space: nowrap; }
+.resident .sheet thead .t.pr { margin-top: 2px; }
+/* スマホ：一覧は長いので、電話で予約するボタンは画面の下に置いたままにする */
+@media screen and (max-width: 899px) {
+  /* 下に固定したボタンの分の余白は、ページの最後（案内と利用約款）の下に取る */
+  .split.resident.layout-list { padding-bottom: 8px; }
+  body.is-list .foot { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
+  .split.resident.layout-list > .dayview { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; margin: 0; padding: 8px 16px calc(8px + env(safe-area-inset-bottom)); background: var(--bg); box-shadow: 0 -1px 0 var(--line); }
+  .split.resident.layout-list > .dayview .btn.tel { padding: 8px 12px; min-height: 0; }
+  .split.resident.layout-list > .dayview .btn.tel b { font-size: 18px; }
+}
+@media (min-width: 900px) {
+  .split.resident { grid-template-columns: minmax(0, 1fr) 380px; }
+  .split.resident .dayview { position: sticky; top: 16px; padding-top: 70px; }
+  .split.resident.has-panel > .dayview { display: none; }
+}
+
+/* 管理者：予約表（これまでの Excel の「駐車場予約表」と同じ形）。罫線は Excel のように細く全て引く */
+.print-only { display: none; }
+.sheet-tools { margin-bottom: 10px; }
+.sheet-tools a { color: var(--green-dk); font-weight: 700; margin-left: 6px; }
+.xwrap { overflow-x: auto; background: var(--paper); border-radius: 12px; box-shadow: 0 0 0 1px var(--line); }
+.xsheet { border-collapse: collapse; width: 100%; min-width: 1000px; font-size: 16px; line-height: 1.35; }
+.xsheet th, .xsheet td { border: 1px solid var(--line-2); padding: 4px 8px; text-align: left; vertical-align: middle; height: 34px; }
+.xsheet thead th { background: var(--bg); font-weight: 700; text-align: center; }
+.xsheet .c-date { width: 7.5em; } .xsheet .c-slot { width: 11em; } .xsheet .c-note { width: 9em; }
+.xsheet th.d { vertical-align: top; white-space: nowrap; font-weight: 700; }
+.xsheet th.d .wd { font-weight: 500; color: var(--ink-2); }
+.xsheet th.d.sun .wd { color: var(--red); } .xsheet th.d.sat .wd { color: #2c5ea8; }
+.xsheet tr.dayhead > * { border-top: 2px solid var(--ink-2); }
+.xsheet td.s { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.xsheet td.s .tms { display: none; } .xsheet td .nn { display: none; }
+.xsheet td.note { color: var(--ink-2); font-size: 15px; }
+.xsheet td.blk { background: var(--amber-50); color: #6e4808; }
+.xsheet tr.today th.d { box-shadow: inset 4px 0 0 var(--amber); }
+/* スマホ・タブレット：日付と時間帯を左に止め、駐車場枠を横に送って見る（印刷には使わない） */
+@media screen and (max-width: 899px) {
+  .xwrap { margin: 0 -16px; border-radius: 0; box-shadow: 0 1px 0 var(--line), 0 -1px 0 var(--line); }
+  .xsheet { table-layout: fixed; width: 536px; min-width: 0; font-size: 15px; }
+  .xsheet .c-date { width: 76px; } .xsheet .c-slot { width: 100px; } .xsheet .c-name { width: 120px; } .xsheet .c-note { width: 0; }
+  /* 狭い幅では、適用を申込者の下に小さく出す（列は Excel と同じまま、幅を0にする） */
+  .xsheet tr.h2 { display: none; }
+  .xsheet .note { padding: 0; border: 0; font-size: 0; line-height: 0; white-space: nowrap; overflow: hidden; color: transparent; }
+  .xsheet td .nn { display: block; font-size: 13px; font-weight: 500; color: var(--ink-2); line-height: 1.3; }
+  .xsheet td.blk .nn { color: #6e4808; }
+  .xsheet { border-collapse: separate; border-spacing: 0; }
+  .xsheet th, .xsheet td { padding: 4px 6px; overflow-wrap: anywhere; border-width: 0 1px 1px 0; }
+  .xsheet tr.dayhead > * { border-top: 2px solid var(--ink-2); }
+  .xsheet th.d .wd { display: block; }
+  .xsheet td.s { white-space: normal; line-height: 1.25; }
+  .xsheet td.s .sl { display: block; font-weight: 700; color: var(--ink); }
+  .xsheet td.s .tm { display: none; }
+  .xsheet td.s .tms { display: block; font-size: 13px; white-space: nowrap; }
+  .xsheet .h-d, .xsheet th.d { position: sticky; left: 0; z-index: 2; background: var(--paper); }
+  .xsheet .h-s, .xsheet td.s { position: sticky; left: 76px; z-index: 2; background: var(--paper); box-shadow: inset -2px 0 0 var(--line-2); }
+  .xsheet thead .h-d, .xsheet thead .h-s { background: var(--bg); z-index: 3; }
+}
+
+/* 2列（PC）：左に表、右に作業 */
+.split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (min-width: 900px) {
+  .split.has-panel { grid-template-columns: minmax(0, 1fr) 400px; }
+  .panel { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; }
+}
+.panel { border-radius: 16px; padding: 18px 20px 22px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.panel h2 { margin-top: 0; }
+/* スマホ：作業の枠を開いている間は、表を隠して枠だけをページとして出す。閉じると表の同じ位置に戻る */
+@media (max-width: 899px) {
+  .split.has-panel > :not(.panel) { display: none; }
+  .panel.sheet-over { box-shadow: none; border-radius: 0; padding: 0 0 32px; background: transparent; }
+}
+.panel .phead { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.panel .phead h2 { margin: 0; }
+
+/* 入力 */
+.f { margin: 18px 0; }
+.f label, .f .lbl { display: block; font-weight: 700; margin-bottom: 6px; }
+.f .opt { font-weight: 500; color: var(--ink-2); font-size: 16px; margin-left: 8px; }
+.in { width: 100%; min-height: 52px; padding: 10px 14px; border: 2px solid var(--line-2); border-radius: var(--r); background: var(--paper); font-size: 18px; }
+.in::placeholder { color: var(--ink-3); }
+.in:hover { border-color: #aeb8b2; }
+.in:focus { border-color: var(--green); outline: none; box-shadow: 0 0 0 3px var(--green-100); }
+.in[aria-invalid="true"] { border-color: var(--red); }
+.err { color: var(--red); font-weight: 700; font-size: 16px; margin: 6px 0 0; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 18px 0; }
+.two .f { margin: 0; }
+.two .in { min-width: 0; }
+@media (max-width: 480px) { .two.dates { grid-template-columns: minmax(0, 1fr); } }
+/* 台数・受付などの選択は、ひと続きの帯にする */
+.f .row[role="group"] { display: inline-flex; flex-wrap: nowrap; gap: 4px; padding: 4px; border-radius: 14px; background: var(--green-50); }
+.f .row[role="group"] .btn { min-height: 44px; padding: 6px 18px; background: transparent; border-radius: 10px; }
+.f .row[role="group"].wrap { flex-wrap: wrap; }
+.f .row[role="group"].wrap .btn { padding: 6px 14px; }
+/* 時間帯 A〜D の選択：スマホでは2つずつ並べ、「C 午後」を折り返さない */
+.f .row[role="group"].pick4 { display: inline-grid; grid-template-columns: repeat(4, auto); }
+.f .row[role="group"].pick4 .btn { white-space: nowrap; padding: 6px 14px; }
+@media (max-width: 480px) { .f .row[role="group"].pick4 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.f .row[role="group"] .btn:hover { background: var(--green-100); }
+.f .row[role="group"] .btn[aria-pressed="true"] { background: var(--green); color: #fff; }
+
+/* 選んだ枠の見出し */
+.pick { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 12px 16px; background: var(--amber-50); border-radius: var(--r); font-size: 17px; }
+.pick b { font-size: 21px; }
+
+/* 確認の表 */
+.kv { margin: 12px 0; }
+.kv div { display: grid; grid-template-columns: 6.5em 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.kv div:last-child { border-bottom: 0; }
+.kv dt { color: var(--ink-2); font-weight: 500; }
+.kv dd { margin: 0; overflow-wrap: anywhere; font-weight: 700; }
+
+/* 結果 */
+.note { padding: 12px 16px; margin: 12px 0; border-radius: var(--r); }
+.note b { display: block; font-size: 19px; }
+.note.ok { background: var(--green-50); color: var(--green-dk); }
+.note.ng { background: var(--red-50); color: #7f2a2c; }
+.note.wait { background: var(--amber-50); color: #6e4808; }
+/* 予約番号は、切り取り線のある控え（半券）にする */
+.ticket { position: relative; margin: 14px 0; padding: 16px 12px 14px; border: 2px dashed var(--line-2); border-radius: 16px; background: var(--paper); text-align: center; }
+.ticket > span:first-child { color: var(--ink-2); font-size: 16px; }
+.ticket .no { display: block; font-size: 42px; font-weight: 700; letter-spacing: 0.16em; line-height: 1.25; font-variant-numeric: tabular-nums; color: var(--ink); }
+.ticket .sub { display: block; }
+
+/* 管理者の操作列。PC：週の移動と検索を1行に。スマホ：週の移動と電話連絡を上に、検索と「今週」は表の下へ */
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.tools .t-week { margin: 0 6px; font-size: 18px; white-space: nowrap; }
+.tools .t-find { margin-left: auto; flex-wrap: nowrap; gap: 0; background: var(--paper); border-radius: var(--r); box-shadow: 0 0 0 2px var(--line-2); }
+.tools .t-find .in { width: 12em; border: 0; min-height: 48px; background: transparent; box-shadow: none; }
+.tools .t-find .btn { border-radius: 0 var(--r) var(--r) 0; }
+.tools .t-find:focus-within { box-shadow: 0 0 0 2px var(--green); }
+.tools .t-print { background: transparent; }
+@media (max-width: 899px) {
+  #app:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  #app .tools { display: contents; }
+  #app .tools .btn { padding: 6px 12px; }
+  #app .t-prev { order: 1; } #app .t-week { order: 2; flex: 1; margin: 0; text-align: center; font-size: 19px; } #app .t-next { order: 3; }
+  #app .t-out { order: 8; margin-left: auto; }
+  #app .split { order: 5; flex-basis: 100%; min-width: 0; }
+  #app .t-find { order: 6; flex-basis: 100%; min-width: 0; max-width: 100%; margin: 20px 0 0; }
+  #app .t-find .in { flex: 1; width: auto; min-width: 0; }
+  #app .t-this { order: 7; }
+  #app .t-block { order: 7; }
+  #app .t-sheet { order: 7; }
+  #app.month-mode .t-this, #app.month-mode .t-sheet { order: 4; }
+  #app.month-mode .tools::after { content: ""; order: 3; flex-basis: 100%; height: 0; }
+  #app.panel-open .tools > * { display: none; }
+  .bar .who { display: none; }
+}
+/* 週の移動：前・次は山形の印つき（線で描く） */
+.t-prev::before, .t-next::after, #prev::before, #next::after { content: ""; width: 8px; height: 8px; border: solid currentColor; border-width: 0 0 2.5px 2.5px; flex: none; }
+.t-prev::before, #prev::before { transform: rotate(45deg); margin-left: 3px; }
+.t-next::after, #next::after { transform: rotate(-135deg); margin-right: 3px; }
+
+/* スマホの管理者：日付の札 */
+.daytabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 6px 0 4px; }
+.daytabs .dt { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 62px; padding: 4px 2px; border: 0; border-radius: var(--r); background: var(--paper); box-shadow: 0 0 0 1px var(--line); color: var(--ink); font: inherit; font-size: 16px; line-height: 1.3; cursor: pointer; }
+.daytabs .dt .d b { font-size: 20px; margin-right: 2px; }
+.daytabs .dt.sun .d span { color: var(--red); }
+.daytabs .dt.sat .d span { color: #2c5ea8; }
+.daytabs .dt .fr { color: var(--ink-2); font-size: 16px; }
+.daytabs .dt[aria-pressed="true"] { background: var(--green); box-shadow: none; color: #fff; }
+.daytabs .dt[aria-pressed="true"] span { color: #fff !important; }
+
+/* 満車のとき */
+.btn.call { display: block; padding: 12px 16px; line-height: 1.5; margin-top: 8px; background: var(--paper); box-shadow: 0 0 0 2px var(--green-100); justify-content: flex-start; text-align: left; }
+.alts { display: grid; gap: 8px; margin-bottom: 12px; }
+.alts .btn { justify-content: space-between; text-align: left; padding: 10px 14px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); color: var(--ink); }
+.alts .btn:hover { background: var(--green-50); }
+.alts .n { font-weight: 700; color: var(--green); white-space: nowrap; }
+
+.busy { display: flex; gap: 12px; align-items: center; font-weight: 700; padding: 14px 0; }
+.spin { width: 22px; height: 22px; border: 3px solid var(--green-100); border-top-color: var(--green); border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+/* 一覧（管理者の検索・電話連絡） */
+.list { width: 100%; border-collapse: collapse; }
+.list th, .list td { border-bottom: 1px solid var(--line); padding: 10px 6px; text-align: left; font-size: 16px; vertical-align: middle; }
+.list th { color: var(--ink-2); font-weight: 500; }
+.badge { display: inline-flex; align-items: center; justify-content: center; min-width: 1.7em; height: 1.7em; padding: 0 6px; border-radius: 999px; background: var(--red); color: #fff; font-size: 16px; font-weight: 700; }
+.badge.zero { background: var(--paper); color: var(--ink-2); }
+
+@media print {
+  body { background: #fff; font-size: 11pt; }
+  .bar button, .no-print, .panel { display: none !important; }
+  .split.has-panel { grid-template-columns: 1fr; }
+  .sheet { box-shadow: none; border: 1px solid #999; }
+  .sheet th, .sheet td { border: 1px solid #999; }
+  .cell { min-height: 0; }
+  .cell.add::after { content: none; }
+  .cell.block { background: none; border: 1px dashed #999; }
+  .print-only { display: table-caption; caption-side: top; text-align: left; font-weight: 700; font-size: 13pt; padding-bottom: 4pt; }
+  .xwrap { overflow: visible; box-shadow: none; border-radius: 0; }
+  .xsheet { min-width: 0; font-size: 9pt; }
+  .xsheet th, .xsheet td { border: 1px solid #555; height: auto; padding: 1pt 3pt; }
+  .xsheet td.note { font-size: 8pt; }
+  .xsheet tr { break-inside: avoid; }
+  .xsheet thead { display: table-header-group; }
+}
+
+/* 電話で伝えてほしいこと・受付時間（主ではないので小さめ） */
+.phone-guide { margin: 10px 2px 0; color: var(--ink-2); font-size: 14px; line-height: 1.6; }
+.phone-guide .pg-h { margin: 0 0 2px; font-weight: 700; }
+.phone-guide ol { margin: 0; padding-left: 1.6em; }
+.phone-guide li { margin: 2px 0; }
+.phone-guide b { color: var(--ink); }
+.phone-guide .pg-hours { margin: 6px 0 0; font-weight: 700; }
+.foot .phone-guide { display: none; text-align: left; max-width: 640px; margin: 0 auto 8px; }
+@media screen and (max-width: 899px) {
+  .split.resident.layout-list > .dayview .phone-guide { display: none; }
+  body.is-list .foot .phone-guide { display: block; }
+}
+/* 利用約款（ページの下から開く） */
+.foot { text-align: center; padding: 8px 16px 20px; }
+.linkish { background: none; border: 0; color: var(--ink-2); font: inherit; font-size: 14px; text-decoration: underline; min-height: 44px; padding: 0 12px; cursor: pointer; }
+dialog.terms { width: min(640px, calc(100vw - 32px)); max-height: 80vh; border: 1px solid var(--line-2); border-radius: 12px; padding: 16px; color: var(--ink); background: var(--bg, #fff); }
+dialog.terms::backdrop { background: rgba(0, 0, 0, .35); }
+dialog.terms h2 { margin: 0 0 8px; font-size: 18px; }
+.terms-body { white-space: pre-wrap; font-size: 14px; line-height: 1.7; overflow: auto; max-height: calc(80vh - 140px); margin-bottom: 12px; }
+</style>

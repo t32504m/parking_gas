@@ -1,0 +1,143 @@
+{
+  "_readme": "ハーネスと実装の約束事。実装AIは ledger の列名対応(columns)と surface を、実装に合わせて更新してよい。ただし変更理由を docs/DECISIONS.md に書くこと。キー名(左辺)は変更しない。",
+  "version": 1,
+  "spaces": [
+    "91",
+    "92",
+    "93"
+  ],
+  "slots": {
+    "S1": {
+      "start": "08:00",
+      "end": "11:00",
+      "endDayOffset": 0,
+      "price": 300
+    },
+    "S2": {
+      "start": "11:00",
+      "end": "14:00",
+      "endDayOffset": 0,
+      "price": 300
+    },
+    "S3": {
+      "start": "14:00",
+      "end": "17:00",
+      "endDayOffset": 0,
+      "price": 300
+    },
+    "S4": {
+      "start": "17:00",
+      "end": "08:00",
+      "endDayOffset": 1,
+      "price": 600
+    }
+  },
+  "timeZone": "Asia/Tokyo",
+  "ledger": {
+    "_readme": "不変条件の検査は、実装のコードを通さずにシートを直接読む。シート名と列名を実装に合わせて対応づけること。日本語の列名でもよい。",
+    "reservations": {
+      "sheet": "Reservations",
+      "headerRow": 1,
+      "columns": {
+        "reservation_id": "reservation_id",
+        "request_id": "request_id",
+        "state": "state",
+        "channel": "channel",
+        "date": "date",
+        "slot_id": "slot_id",
+        "quantity": "quantity",
+        "price_total": "price_total",
+        "start_at": "start_at",
+        "end_at": "end_at",
+        "created_at": "created_at",
+        "operator": "operator",
+        "name": "name"
+      },
+      "states": {
+        "confirmed": [
+          "CONFIRMED"
+        ],
+        "cancelled": [
+          "CANCELLED"
+        ],
+        "rejected": [
+          "REJECTED"
+        ]
+      }
+    },
+    "allocations": {
+      "sheet": "Allocations",
+      "headerRow": 1,
+      "columns": {
+        "reservation_id": "reservation_id",
+        "date": "date",
+        "slot_id": "slot_id",
+        "space_id": "space_id",
+        "state": "state"
+      },
+      "activeStates": [
+        "ACTIVE"
+      ]
+    },
+    "audit": {
+      "sheet": "AuditLog",
+      "headerRow": 1,
+      "columns": {
+        "action": "action",
+        "operator": "operator",
+        "reservation_id": "reservation_id",
+        "reason": "reason",
+        "at": "at"
+      }
+    },
+    "notifications": {
+      "sheet": "Notifications",
+      "headerRow": 1,
+      "columns": {
+        "reservation_id": "reservation_id",
+        "state": "state",
+        "attempts": "attempts"
+      },
+      "states": {
+        "sent": [
+          "SENT"
+        ],
+        "failed": [
+          "FAILED",
+          "RETRY"
+        ],
+        "pending": [
+          "PENDING"
+        ],
+        "notRequired": [
+          "NOT_REQUIRED",
+          "PHONE"
+        ]
+      }
+    }
+  },
+  "surface": {
+    "_readme": "src/ の最上位関数のうち、名前が _ で終わらないものは全て google.script.run から誰でも呼べる。全て列挙し、権限区分を宣言すること。未宣言の公開関数があると lint が失敗する。区分: public / admin / operator / job",
+    "functions": {
+      "doGet": "public",
+      "api_getAvailability": "public",
+      "api_submitReservation": "public",
+      "api_getRequestStatus": "public",
+      "api_admin_register": "admin",
+      "api_admin_list": "admin",
+      "api_admin_cancel": "admin",
+      "api_admin_callList": "admin",
+      "job_processNotifications": "job",
+      "setup_init": "operator"
+    },
+    "auditSheetsWritableOnDenied": [
+      "AuditLog"
+    ]
+  },
+  "ui": {
+    "_readme": "画面の入口。実装に合わせて書き換える。",
+    "userPath": "/exec",
+    "adminPath": "/exec?mode=admin",
+    "submitFunctionPattern": "submit|reserv|book|register"
+  }
+}

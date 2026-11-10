@@ -1,0 +1,27 @@
+公開の関数ごとのシートの呼び出し回数（100日分=800行 と 365日分=2920行）
+関数 | 結果 | シート呼出し(100) | シート呼出し(365) | 推定ms(100) | 推定ms(365) | 実時間ms(365)
+doGet（住民の画面） |  | 0 | 0 | 25 | 25 | 34.8
+api_admin_login | OK | 0 | 0 | 75 | 75 | 35.6
+api_admin_register（電話） | CONFIRMED | 26 | 26 | 1870 | 1870 | 153.6
+api_getAvailability（1か月） | OK | 6 | 6 | 385 | 385 | 106
+api_admin_availability（1週間） | OK | 6 | 6 | 405 | 405 | 73.3
+api_admin_week（週の表を1回で） | OK | 12 | 12 | 685 | 685 | 189.3
+api_admin_list（1週間） | OK | 10 | 10 | 615 | 615 | 167.2
+api_admin_list（名前で探す） | OK | 16 | 16 | 825 | 825 | 180.4
+api_admin_callList | OK | 10 | 10 | 615 | 615 | 171
+api_admin_blockList | OK | 3 | 3 | 265 | 265 | 36.2
+api_admin_monthTable | OK | 9 | 9 | 545 | 545 | 140.9
+api_getRequestStatus | CONFIRMED | 4 | 4 | 315 | 315 | 111.8
+api_lookupReservation | OK | 4 | 4 | 315 | 315 | 109.8
+api_admin_change（時間帯） | CHANGED | 17 | 17 | 1170 | 1170 | 150.1
+api_admin_markCalled | OK | 8 | 8 | 610 | 610 | 67.3
+api_admin_addBlock（確認） | PREVIEW | 7 | 7 | 475 | 475 | 135.2
+api_admin_addBlock（登録） | OK | 15 | 15 | 970 | 970 | 147.8
+api_admin_releaseBlock | OK | 16 | 16 | 1020 | 1020 | 148.3
+api_admin_exportMonth | OK | 18 | 18 | 1050 | 1050 | 147.8
+api_admin_cancel | CANCELLED | 17 | 17 | 1120 | 1120 | 145.7
+api_submitReservation（住民） | CONFIRMED | 18 | 18 | 1180 | 1180 | 138.5
+job_processNotifications | OK | 13 | 13 | 1225 | 1225 | 178.4
+job_archiveLedger | OK | 37 | 43 ←増えた | 2090 | 2240 | 336.5
+
+推定の合計：100日分 17850ms、365日分 18000ms。行数で回数が増えた関数：1

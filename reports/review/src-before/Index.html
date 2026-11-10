@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <?!= include_('Styles') ?>
+</head>
+<body>
+  <header class="bar">
+    <h1><span class="mark" aria-hidden="true">P</span>駐車場の空き状況</h1>
+  </header>
+  <main class="page">
+    <div class="split resident" id="split">
+      <section aria-labelledby="h-month" id="monthview">
+        <div class="seg no-print" role="group" aria-label="表示の形">
+          <button type="button" class="btn" data-layout="list">一覧</button>
+          <button type="button" class="btn" data-layout="calendar">カレンダー</button>
+        </div>
+        <div class="weeknav">
+          <h2 id="h-month" class="num"></h2>
+          <button type="button" class="btn no-print" id="prev"><span class="tx">前の月</span></button>
+          <button type="button" class="btn no-print" id="next"><span class="tx">次の月</span></button>
+        </div>
+        <div id="sheet"></div>
+      </section>
+      <section class="dayview" id="dayview" aria-live="polite"></section>
+      <aside class="panel sheet-over" id="panel" hidden aria-live="polite" role="dialog" aria-labelledby="h-panel"></aside>
+    </div>
+  </main>
+
+  <?!= include_('Common') ?>
+  <script>
+  (function () {
+    'use strict';
+    var PANEL_Y = 0;
+    var esc = App.esc, $ = App.$;
+    var CONTACT = <?= contact ?>;
+    var TODAY = <?= today ?>;
+    var VIEW_FROM = <?= viewFrom ?>; // 住民に見せる最初の日（当日・直前の分は見せない）
+    var LAYOUT = <?= layout ?> || App.local.get('parking.layout');
+    if (LAYOUT !== 'calendar') LAYOUT = 'list';
+    var WD = ['日', '月', '火', '水', '木', '金', '土'];
+    var MARK = { free: '○', full: '×' };
+    var WORD = { free: '空き', full: '満車' };
+    var S = {
+      month: VIEW_FROM.slice(0, 7), day: VIEW_FROM, until: null, online: false, days: {}, maxQuantity: 1,
+      loading: false, failed: false,
+      pick: null, view: null, quantity: 1,
+      form: App.local.get('parking.me') || { name: '', building: '', room: '', phone: '', email: '' },
+      requestId: null, sent: null, result: null,
+    };
+
+    // ------------------------------------------------------------ 月
+    function monthFirst(m) { return m + '-01'; }
+    function monthLast(m) { var y = +m.slice(0, 4), mo = +m.slice(5, 7); return App.ymd(y, mo, new Date(Date.UTC(y, mo, 0)).getUTCDate()); }
+    function shiftMonth(m, n) { var y = +m.slice(0, 4), mo = +m.slice(5, 7) - 1 + n; y += Math.floor(mo / 12); mo = ((mo % 12) + 12) % 12; return y + '-' + ('0' + (mo + 1)).slice(-2); }
+    function monthTitle(m) { return (+m.slice(0, 4)) + '年' + (+m.slice(5, 7)) + '月'; }
+    function inRange(d) { return d >= VIEW_FROM && (!S.until || d <= S.until); }
+    function firstOf(m) { return monthFirst(m) < VIEW_FROM ? VIEW_FROM : monthFirst(m); }
+
+    /** 枠の空き具合：free（○）・full（×）の2つだけ（△は分かりにくいため使わない）。始まった・範囲外は null */
+    function stateOf(s) {
+      if (!s || s.closed) return null;
+      return s.remaining > 0 ? 'free' : 'full';
+    }
+    /** 日の空き具合（カレンダーの形）：1つでも空いていれば○、全て埋まっていれば× */
+    function dayState(d) {
+      var x = S.days[d]; if (!x) return null;
+      var st = x.slots.map(stateOf).filter(Boolean);
+      if (!st.length) return null;
+      return st.some(function (v) { return v === 'free'; }) ? 'free' : 'full';
+    }
+    function slotOf(date, id) {
+      var d = S.days[date];
+      return d && d.slots.filter(function (s) { return s.slotId === id; })[0];
+    }
+
+    function load() {
+      var from = firstOf(S.month);
+      var to = monthLast(S.month);
+      if (S.until && to > S.until) to = S.until;
+      if (to < from) { render(); return Promise.resolve(); }
+      var seq = S.seq = (S.seq || 0) + 1; // 月を続けて送ったとき、古い応答で表示を乱さない
+      S.loading = true; S.failed = false; render();
+      return App.call('api_getAvailability', { from: from, to: to }).then(function (r) {
+        if (r && r.status === 'OK') {
+          S.until = r.until; S.online = !!r.residentBooking; S.maxQuantity = r.maxQuantity || 1;
+          r.days.forEach(function (d) { S.days[d.date] = d; });
+        }
+        if (seq !== S.seq) return;
+        S.loading = false;
+        if (!r || r.status !== 'OK') S.failed = true;
+        render();
+      }, function () { if (seq !== S.seq) return; S.loading = false; S.failed = true; render(); });
+    }
+
+    function render() {
+      $('h-month').textContent = monthTitle(S.month);
+      $('prev').disabled = S.month <= VIEW_FROM.slice(0, 7);
+      $('next').disabled = !S.until || monthFirst(shiftMonth(S.month, 1)) > S.until;
+      if (S.failed) {
+        $('sheet').innerHTML = App.note('ng', '空き状況を読み込めませんでした', '') + '<button type="button" class="btn main" id="reload">もう一度読み込む</button>';
+        $('reload').onclick = load; $('dayview').innerHTML = ''; return;
+      }
+      var first = firstOf(S.month);
+      if (!S.days[first] && S.loading) { $('sheet').innerHTML = App.busy('読み込んでいます'); $('dayview').innerHTML = ''; return; }
+      if (LAYOUT === 'list') renderList(); else renderCalendar();
+      renderDay();
+    }
+
+    // ---- カレンダー（日ごとに1つの記号。日を押すと、その日の4つの時間帯を出す）
+    function renderCalendar() {
+      var first = monthFirst(S.month), last = monthLast(S.month);
+      var h = ['<table class="cal"><thead><tr>'];
+      WD.forEach(function (w, i) { h.push('<th scope="col"' + (i === 0 ? ' class="sun"' : i === 6 ? ' class="sat"' : '') + '>' + w + '</th>'); });
+      h.push('</tr></thead><tbody><tr>');
+      var lead = App.dow(first);
+      for (var i = 0; i < lead; i++) h.push('<td></td>');
+      for (var d = first; d <= last; d = App.addDays(d, 1)) {
+        var w = App.dow(d);
+        if (w === 0 && d !== first) h.push('</tr><tr>');
+        var n = +d.slice(8);
+        var cls = 'cday' + (w === 0 ? ' sun' : w === 6 ? ' sat' : '') + (d === TODAY ? ' today' : '');
+        var st = inRange(d) ? dayState(d) : null;
+        if (!st) {
+          h.push('<td><span class="' + cls + ' out"' + (d === TODAY ? ' aria-label="' + esc(App.md(d) + ' 今日') + '"' : '') + '><span class="dn">' + n + '</span>'
+            + (d === TODAY ? '<span class="tg" aria-hidden="true">今日</span>' : '') + '</span></td>');
+        } else {
+          h.push('<td><button type="button" class="' + cls + ' ' + st + '" data-day="' + d + '" aria-pressed="' + (d === S.day) + '" aria-label="' + esc(App.md(d) + ' ' + WORD[st]) + '">'
+            + '<span class="dn">' + n + '</span><span class="mk" aria-hidden="true">' + MARK[st] + '</span></button></td>');
+        }
+      }
+      var tail = (7 - ((lead + (+last.slice(8))) % 7)) % 7;
+      for (var j = 0; j < tail; j++) h.push('<td></td>');
+      h.push('</tr></tbody></table>');
+      $('sheet').innerHTML = h.join('');
+      App.on($('sheet'), 'button[data-day]', function (b) {
+        S.day = b.getAttribute('data-day'); render();
+        if (!window.matchMedia('(min-width: 900px)').matches) App.reveal($('h-day'));
+      });
+    }
+
+    // ---- 縦の一覧（既定：1行が1日。4つの時間帯の記号を横に並べる）
+    function renderList() {
+      var first = firstOf(S.month);
+      var last = monthLast(S.month); if (S.until && last > S.until) last = S.until;
+      var any = S.days[first] ? S.days[first].slots : [];
+      var h = ['<table class="sheet"><colgroup><col style="width:22%">' + any.map(function () { return '<col>'; }).join('') + '</colgroup><thead><tr><th scope="col">日付</th>'];
+      any.forEach(function (s) {
+        // 「17時〜翌朝8時」は「〜」の後ろでだけ折り返す
+        var tm = App.slotShort(s.slotId).split('〜');
+        h.push('<th scope="col">' + App.markTag(s.slotId) + esc(s.label) + '<span class="t"><span class="nw">' + esc(tm[0]) + '〜</span><span class="nw">' + esc(tm.slice(1).join('〜')) + '</span></span><span class="t pr">' + App.yen(s.price) + '</span></th>');
+      });
+      h.push('</tr></thead><tbody>');
+      for (var d = first; d <= last; d = App.addDays(d, 1)) {
+        var x = S.days[d]; if (!x) continue;
+        var dc = App.dayCell(d, TODAY);
+        h.push('<tr' + (d === TODAY ? ' class="today"' : '') + '><th scope="row" class="' + dc.cls + '">' + dc.html + '</th>');
+        x.slots.forEach(function (s) { h.push('<td>' + slotCell(d, s) + '</td>'); });
+        h.push('</tr>');
+      }
+      h.push('</tbody></table>');
+      $('sheet').innerHTML = (any.length ? h.join('') : '');
+      bindSlots($('sheet'));
+    }
+    function slotCell(d, s) {
+      var st = stateOf(s); var label = App.md(d) + ' ' + App.slotName(s);
+      if (!st) return '<span class="cell closed" aria-label="' + esc(label + ' 受付していません') + '"></span>';
+      var picked = S.pick && S.pick.date === d && S.pick.slotId === s.slotId;
+      var inner = '<span class="mk" aria-hidden="true">' + MARK[st] + '</span>';
+      var attr = ' class="cell ' + (st === 'full' ? 'full' : 'free') + (picked ? ' picked' : '') + '" aria-label="' + esc(label + ' ' + WORD[st]) + '"';
+      if (S.online && (s.online || st === 'full')) return '<button type="button"' + attr + (st === 'full' ? ' data-full="' : ' data-date="') + d + '" data-slot="' + s.slotId + '">' + inner + '</button>';
+      return '<span' + attr + ' role="img">' + inner + '</span>';
+    }
+
+    // ---- その日の時間帯（カレンダーの横／下）と、電話で予約するボタン
+    function renderDay() {
+      var v = $('dayview');
+      if (LAYOUT === 'list') { v.innerHTML = callButton(); return; }
+      var x = S.days[S.day];
+      if (!x || !inRange(S.day)) { v.innerHTML = callButton(); return; }
+      var h = ['<h2 id="h-day">' + esc(App.md(S.day)) + (S.day === TODAY ? '<span class="today-tag">今日</span>' : '') + '</h2><ul class="slots">'];
+      x.slots.forEach(function (s) {
+        var st = stateOf(s);
+        var body = '<span class="nm"><b>' + App.markTag(s.slotId) + esc(s.label) + '</b><span class="t">' + App.slotShort(s.slotId) + '</span><span class="t">' + App.yen(s.price) + '</span></span>'
+          + '<span class="st">' + (st ? '<span class="mk" aria-hidden="true">' + MARK[st] + '</span>' + WORD[st] : '受付終了') + '</span>';
+        var cls = 'slot ' + (st || 'closed');
+        if (S.online && st && (s.online || st === 'full')) h.push('<li><button type="button" class="' + cls + '"' + (st === 'full' ? ' data-full="' : ' data-date="') + S.day + '" data-slot="' + s.slotId + '">' + body + '</button></li>');
+        else h.push('<li><div class="' + cls + '">' + body + '</div></li>');
+      });
+      h.push('</ul>');
+      v.innerHTML = h.join('') + callButton();
+      bindSlots(v);
+    }
+
+    /** 電話をかけるボタン（問合せ先に番号が無ければ文字だけ） */
+    function telOf() {
+      var m = String(CONTACT).match(/[0-9\uFF10-\uFF19][0-9\uFF10-\uFF19\-\uFF0D]{8,}[0-9\uFF10-\uFF19]/);
+      return m ? m[0].replace(/[\uFF10-\uFF19]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/[^0-9]/g, '') : '';
+    }
+    function callButton() {
+      var tel = telOf();
+      if (!tel) return '<p class="tel-text">' + esc(CONTACT) + '</p>';
+      // 番号の途中で折り返さない
+      var m = String(CONTACT).match(/[0-9\uFF10-\uFF19][0-9\uFF10-\uFF19\-\uFF0D]{8,}[0-9\uFF10-\uFF19]/);
+      var i = CONTACT.indexOf(m[0]);
+      var text = esc(CONTACT.slice(0, i)) + '<span class="nb">' + esc(m[0]) + '</span>' + esc(CONTACT.slice(i + m[0].length));
+      return '<a class="btn main wide tel" target="_top" href="tel:' + tel + '"><b>電話で予約する</b><span>' + text + '</span></a>';
+    }
+    function contactButton() {
+      var tel = telOf();
+      return tel ? '<a class="btn wide call" target="_top" href="tel:' + tel + '">' + esc(CONTACT) + '</a>' : '<p>' + esc(CONTACT) + '</p>';
+    }
+
+    function bindSlots(root) {
+      App.on(root, '[data-date]', function (b) { pick(b.getAttribute('data-date'), b.getAttribute('data-slot')); });
+      App.on(root, '[data-full]', function (b) { pickFull(b.getAttribute('data-full'), b.getAttribute('data-slot')); });
+    }
+
+    function move(n) {
+      S.month = shiftMonth(S.month, n);
+      if (S.month < VIEW_FROM.slice(0, 7)) S.month = VIEW_FROM.slice(0, 7);
+      var first = firstOf(S.month);
+      if (S.day.slice(0, 7) !== S.month) S.day = first;
+      if (!S.days[first]) load(); else render();
+    }
+    $('prev').onclick = function () { move(-1); };
+    $('next').onclick = function () { move(1); };
+
+    // ------------------------------------------------------------ 以下は、住民の受付を開いたときだけ使う（今は電話受付のため出ない）
+    function openPanel(view) {
+      S.view = view;
+      if (!$('split').classList.contains('has-panel')) PANEL_Y = window.scrollY;
+      $('split').classList.add('has-panel');
+      $('panel').hidden = false;
+      renderPanel();
+      App.reveal($('panel').querySelector('h2'));
+    }
+    function closePanel() {
+      S.view = null; S.pick = null; S.requestId = null;
+      $('panel').hidden = true; $('split').classList.remove('has-panel');
+      setTimeout(function () { window.scrollTo(0, PANEL_Y || 0); }, 0);
+      render();
+    }
+
+    function pick(date, slotId) {
+      if (S.view === 'sending') return;
+      S.pick = { date: date, slotId: slotId }; S.day = date;
+      var s = slotOf(date, slotId);
+      S.pickSlot = s;
+      S.quantity = Math.min(S.quantity || 1, s.remaining, S.maxQuantity) || 1;
+      S.requestId = null;
+      render();
+      openPanel('form');
+    }
+
+    // 満車の枠を押したとき：近くの空いている枠を、そのまま選べる形で出す
+    function pickFull(date, slotId) {
+      if (S.view === 'sending') return;
+      S.pick = { date: date, slotId: slotId }; S.day = date; S.pickSlot = slotOf(date, slotId); S.requestId = null;
+      render(); openPanel('full');
+    }
+    function alternatives() {
+      var out = []; var d0 = S.pick.date; var id0 = S.pick.slotId;
+      var ok = function (s) { return s && s.online; };
+      // 同じ時間帯のほかの日を先に（「夜に使いたい」が多いため）、その後に同じ日のほかの時間帯
+      for (var i = 1; i <= 7 && out.length < 3; i++) {
+        var d = App.addDays(d0, i); var s1 = slotOf(d, id0);
+        if (ok(s1)) out.push({ date: d, s: s1 });
+      }
+      (S.days[d0] ? S.days[d0].slots : []).forEach(function (s) { if (s.slotId !== id0 && ok(s)) out.push({ date: d0, s: s }); });
+      return out;
+    }
+
+    function pickStrip(word) {
+      var s = S.pickSlot; var st = stateOf(s);
+      return '<div class="pick"><b>' + esc(App.md(S.pick.date)) + '</b><span>' + esc(App.slotLong(S.pick.date, s)) + '</span><span>' + (word || (st ? MARK[st] + ' ' + WORD[st] : '')) + '</span></div>';
+    }
+
+    function renderPanel() {
+      var p = $('panel');
+      var head = function (title) { return '<div class="phead"><h2 id="h-panel">' + esc(title) + '</h2><button type="button" class="btn plain" id="close">閉じる</button></div>'; };
+      if (S.view === 'full') {
+        var alts = alternatives();
+        p.innerHTML = head('満車です') + pickStrip('満車') + contactButton()
+          + (alts.length ? '<h3>近くの空いている枠</h3><div class="alts">' + alts.map(function (a) {
+            var st = stateOf(a.s);
+            return '<button type="button" class="btn wide" data-alt="' + a.date + '" data-slot="' + a.s.slotId + '"><span><b>' + (+a.date.slice(5, 7)) + '/' + (+a.date.slice(8)) + '（' + App.wd(a.date) + '）</b> ' + esc(App.slotName(a.s)) + '</span><span class="n">' + MARK[st] + ' ' + WORD[st] + '</span></button>';
+          }).join('') + '</div>' : '');
+        App.on(p, 'button[data-alt]', function (b) { pick(b.getAttribute('data-alt'), b.getAttribute('data-slot')); });
+      } else if (S.view === 'form') {
+        var s = S.pickSlot;
+        var maxQ = Math.min(S.maxQuantity, s.remaining);
+        var q = [];
+        for (var i = 1; i <= maxQ; i++) q.push('<button type="button" class="btn" data-q="' + i + '" aria-pressed="' + (S.quantity === i) + '">' + i + '台</button>');
+        p.innerHTML = head('申し込み') + pickStrip()
+          + '<form id="f" novalidate>'
+          + (maxQ > 1 ? '<div class="f"><span class="lbl" id="q-lbl">台数</span><div class="row" role="group" aria-labelledby="q-lbl">' + q.join('') + '</div></div>' : '')
+          + field('f-name', 'お名前', 'name', 'text', 'name', true)
+          + '<div class="two">' + field('f-building', '棟', 'building', 'text', 'off', false, '例：A棟', true) + field('f-room', '部屋番号', 'room', 'text', 'off', true) + '</div>'
+          + field('f-phone', '電話番号', 'phone', 'tel', 'tel', true)
+          + field('f-email', 'メール', 'email', 'email', 'email', false)
+          + '<button type="submit" class="btn main wide">確認へ進む</button></form>';
+        App.on(p, 'button[data-q]', function (b) { read(); S.quantity = +b.getAttribute('data-q'); renderPanel(); });
+        $('f').onsubmit = function (e) { e.preventDefault(); read(); if (!App.showErrors($('f'), check())) return; S.view = 'confirm'; renderPanel(); App.reveal($('h-panel')); };
+      } else if (S.view === 'confirm') {
+        var s2 = S.pickSlot;
+        p.innerHTML = head('この内容で申し込みますか') + App.kv([
+          ['利用日', esc(App.ymdText(S.pick.date))], ['時間帯', esc(App.slotLong(S.pick.date, s2))], ['台数', S.quantity + '台'],
+          ['料金', App.yen(s2.price * S.quantity)], ['お名前', esc(S.form.name)], ['棟・部屋', esc((S.form.building ? S.form.building + ' ' : '') + S.form.room)],
+          ['電話番号', esc(S.form.phone)], ['メール', esc(S.form.email || 'なし')],
+        ]) + '<div class="row"><button type="button" class="btn main" id="send">申し込む</button><button type="button" class="btn" id="fix">直す</button></div>';
+        $('send').onclick = submit;
+        $('fix').onclick = function () { S.view = 'form'; renderPanel(); };
+      } else if (S.view === 'sending') {
+        p.innerHTML = '<h2 id="h-panel">申し込み</h2>' + App.busy('申し込んでいます');
+      } else if (S.view === 'result') {
+        p.innerHTML = head(resultTitle()) + resultBody();
+        bindResult();
+      }
+      if ($('close')) $('close').onclick = closePanel;
+    }
+
+    function field(id, label, key, type, ac, req, ph, noOpt) {
+      return '<div class="f"><label for="' + id + '">' + label + (req || noOpt ? '' : '<span class="opt">なくても可</span>') + '</label>'
+        + '<input class="in" id="' + id + '" type="' + type + '" autocomplete="' + ac + '"' + (type === 'tel' ? ' inputmode="tel"' : '')
+        + (ph ? ' placeholder="' + esc(ph) + '"' : '') + (req ? ' aria-required="true"' : '') + ' value="' + esc(S.form[key] || '') + '"></div>';
+    }
+    function read() { ['name', 'building', 'room', 'phone', 'email'].forEach(function (k) { var el = $('f-' + k); if (el) S.form[k] = el.value.trim(); }); }
+    function check() {
+      var e = {};
+      if (!S.form.name) e['f-name'] = 'お名前を入れてください';
+      if (!S.form.room) e['f-room'] = '部屋番号を入れてください';
+      if (!S.form.phone) e['f-phone'] = '電話番号を入れてください';
+      else if (S.form.phone.replace(/[^0-9\uFF10-\uFF19]/g, '').length < 6) e['f-phone'] = '電話番号を数字で入れてください';
+      if (S.form.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(S.form.email)) e['f-email'] = 'メールの形が違います';
+      return e;
+    }
+
+    // 申込み（再送しても二重にならない）
+    function submit() {
+      if (S.view === 'sending') return;
+      if (!S.requestId) S.requestId = App.newRequestId();
+      S.sent = { requestId: S.requestId, date: S.pick.date, slotId: S.pick.slotId, quantity: S.quantity,
+        name: S.form.name, building: S.form.building, room: S.form.room, phone: S.form.phone, email: S.form.email };
+      S.view = 'sending'; renderPanel();
+      App.call('api_submitReservation', S.sent).then(done, function () { done({ status: 'NETWORK' }); });
+    }
+    function checkResult() {
+      S.view = 'sending'; renderPanel();
+      App.call('api_getRequestStatus', { requestId: S.requestId }).then(function (r) {
+        done(r && r.status === 'UNKNOWN' ? { status: 'NOT_ARRIVED' } : r);
+      }, function () { done({ status: 'NETWORK' }); });
+    }
+    function done(r) {
+      S.result = r || { status: 'NETWORK' };
+      if (S.result.status === 'CONFIRMED') App.local.set('parking.me', S.form);
+      if (S.result.status === 'CONFIRMED' || S.result.status === 'REJECTED') { S.days = {}; load(); }
+      S.view = 'result'; renderPanel(); App.reveal($('h-panel'));
+    }
+
+    function resultTitle() {
+      return { CONFIRMED: '予約が確定しました', REJECTED: '予約できませんでした', NOT_ARRIVED: '申し込みは届いていません', PENDING: 'まだ処理中です' }[S.result.status]
+        || (S.result.status === 'ERROR' && S.result.reason === 'BUSY' ? '混み合っています' : '結果が分かりませんでした');
+    }
+    function resultBody() {
+      var r = S.result; var s = S.pickSlot;
+      var what = App.md(S.pick.date) + ' ' + App.slotLong(S.pick.date, s) + ' ' + S.quantity + '台';
+      if (r.status === 'CONFIRMED') {
+        return '<div class="ticket"><span>予約番号</span><span class="no">' + esc(r.reservationId) + '</span><span class="sub">控えておいてください</span></div>'
+          + App.kv([['利用日', esc(App.ymdText(S.pick.date))], ['時間帯', esc(App.slotLong(S.pick.date, s))], ['台数', S.quantity + '台'], ['料金', App.yen((r.summary && r.summary.priceTotal) || s.price * S.quantity)]])
+          + '<button type="button" class="btn wide" id="r-close">閉じる</button>';
+      }
+      if (r.status === 'REJECTED') {
+        return App.note('ng', r.reasonText || 'この内容では予約できません', '') + '<p class="sub">' + esc(what) + '</p>'
+          + (r.reason === 'INVALID' ? '<button type="button" class="btn main wide" id="r-fix">直す</button>' : '<button type="button" class="btn main wide" id="r-close">ほかの枠を選ぶ</button>')
+          + '<p class="sub">' + esc(CONTACT) + '</p>';
+      }
+      if (r.status === 'NOT_ARRIVED' || (r.status === 'ERROR' && r.reason === 'BUSY')) {
+        return '<p>' + esc(what) + '</p><button type="button" class="btn main wide" id="r-resend">もう一度申し込む</button>';
+      }
+      return App.note('wait', '予約できたかどうか、まだ分かりません', '') + '<p>' + esc(what) + '</p>'
+        + '<button type="button" class="btn main wide" id="r-check">結果を確かめる</button><p class="sub">' + esc(CONTACT) + '</p>';
+    }
+    function bindResult() {
+      if ($('r-close')) $('r-close').onclick = closePanel;
+      if ($('r-fix')) $('r-fix').onclick = function () { S.view = 'form'; S.requestId = null; renderPanel(); };
+      if ($('r-resend')) $('r-resend').onclick = submit;
+      if ($('r-check')) $('r-check').onclick = checkResult;
+    }
+
+    /** 表示の形を切り替える（一覧／カレンダー）。選んだ形は端末に覚える */
+    function setLayout(l) {
+      LAYOUT = l;
+      $('split').classList.toggle('layout-list', l === 'list');
+      $('split').classList.toggle('layout-calendar', l === 'calendar');
+      Array.prototype.forEach.call(document.querySelectorAll('[data-layout]'), function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-layout') === l)); });
+      if (S.day.slice(0, 7) !== S.month || !inRange(S.day)) S.day = firstOf(S.month);
+    }
+    App.on(document.querySelector('.seg'), '[data-layout]', function (b) {
+      var l = b.getAttribute('data-layout');
+      if (l === LAYOUT) return;
+      setLayout(l); App.local.set('parking.layout', l); render();
+    });
+    setLayout(LAYOUT);
+    load();
+  }());
+  </script>
+</body>
+</html>
