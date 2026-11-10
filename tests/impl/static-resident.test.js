@@ -1,14 +1,15 @@
 'use strict';
-// 外に置く住民の画面（D-034）：tools/build-resident-static.js が作る HTML と、GAS の residentApi_（doPost の中身）
+// 外に置く住民の画面（D-034・D-035）：tools/build-static.js が作る HTML と、GAS の doPost（webApi_）
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
-const { startStatic } = require('../../tools/serve-resident-static');
-const { build } = require('../../tools/build-resident-static');
+const { startStatic } = require('../../tools/serve-static');
+const { buildPage } = require('../../tools/build-static');
+const build = (o) => buildPage('resident', o);
 
 const post = (s, body) => fetch(s.url + 'gas', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body) }).then((r) => r.json());
 
-test('residentApi_：住民向けの関数と設定だけを答え、管理者・運用の関数は断る', async () => {
+test('doPost：住民向けの関数と設定を答え、運用・内部の関数は断る。管理者の関数は印が無ければ断る', async () => {
   const s = await startStatic({});
   try {
     const c = await post(s, { fn: 'config' });
@@ -19,8 +20,11 @@ test('residentApi_：住民向けの関数と設定だけを答え、管理者�
     assert.equal(a.status, 'OK');
     const raw = JSON.stringify(a);
     assert.ok(!raw.includes('"remaining"') && !raw.includes('"capacity"'), '住民向けに台数の数を返している');
-    for (const fn of ['api_admin_list', 'api_admin_login', 'setup_run', 'setup_init', 'job_archiveLedger', 'job_processNotifications', 'residentApi_', 'doGet', 'constructor', '__proto__']) {
-      assert.equal((await post(s, { fn, arg: {} })).status, 'DENIED', `${fn} を断らない`);
+    for (const fn of ['setup_run', 'setup_init', 'job_archiveLedger', 'job_processNotifications', 'testSeed_all', 'webApi_', 'residentConfig_', 'doGet', 'doPost', 'constructor', '__proto__', 'toString', 'hasOwnProperty', 'api_admin_unknown']) {
+      assert.equal((await post(s, { fn, args: [{}] })).status, 'DENIED', `${fn} を断らない`);
+    }
+    for (const fn of ['api_admin_list', 'api_admin_week', 'api_admin_register', 'api_admin_cancel', 'api_admin_exportMonth']) {
+      assert.equal((await post(s, { fn, args: [{ token: 'forged' }, {}] })).status, 'DENIED', `${fn} を偽の印で通した`);
     }
     for (const bad of [null, 'x', [], { fn: 1 }, {}]) assert.equal((await post(s, bad)).status, 'DENIED');
     // 本番の設定では、住民の申込みは閉じている

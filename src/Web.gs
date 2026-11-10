@@ -34,25 +34,44 @@ function residentConfig_() {
 }
 
 /**
- * 外に置いた住民の画面（Cloudflare Pages など）からの呼び出し（D-034）。
+ * 外に置いた画面（Cloudflare Pages など）からの呼び出し（D-034・D-035）。
  * ブラウザは Google のログイン情報を送らずに呼ぶので、複数の Google アカウントにログインしている端末でも開ける。
- * 呼べるのは、google.script.run から誰でも呼べる住民向けの関数と、画面の設定だけ（権限は google.script.run と同じ）。
- * 送る形：POST の本文に {"fn": "関数の名前", "arg": 引数}（Content-Type は text/plain）。
+ * 送る形：POST の本文に {"fn": "関数の名前", "args": [引数, …]}（Content-Type は text/plain）。
+ * 呼べるのは、下の一覧の関数（google.script.run から誰でも呼べるもの）と、画面の設定だけ。
+ * 管理者の関数は、今までどおり、関数の中で管理者の印（トークン）を確かめる。setup_*・job_* と _ で終わる関数は呼べない。
  */
 function doPost(e) {
   var body = null;
   try { body = JSON.parse(e && e.postData && e.postData.contents || 'null'); } catch (x) { body = null; }
-  return ContentService.createTextOutput(JSON.stringify(residentApi_(body))).setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify(webApi_(body))).setMimeType(ContentService.MimeType.JSON);
 }
-function residentApi_(body) {
+function webApi_(body) {
   var fn = body && typeof body.fn === 'string' ? body.fn : '';
-  var arg = body ? body.arg : null;
-  if (fn === 'config') return guard_(function () { var c = residentConfig_(); c.status = 'OK'; return c; });
-  if (fn === 'api_getAvailability') return api_getAvailability(arg);
-  if (fn === 'api_submitReservation') return api_submitReservation(arg);
-  if (fn === 'api_getRequestStatus') return api_getRequestStatus(arg);
-  if (fn === 'api_lookupReservation') return api_lookupReservation(arg);
-  return { status: 'DENIED' };
+  var args = body && Object.prototype.toString.call(body.args) === '[object Array]' ? body.args
+    : [body && body.arg !== undefined ? body.arg : null];
+  var a = args[0] === undefined ? null : args[0], b = args[1] === undefined ? null : args[1];
+  switch (fn) {
+    case 'config': return guard_(function () { var c = residentConfig_(); c.status = 'OK'; return c; });
+    case 'api_getAvailability': return api_getAvailability(a);
+    case 'api_submitReservation': return api_submitReservation(a);
+    case 'api_getRequestStatus': return api_getRequestStatus(a);
+    case 'api_lookupReservation': return api_lookupReservation(a);
+    case 'api_admin_login': return api_admin_login(a);
+    case 'api_admin_availability': return api_admin_availability(a, b);
+    case 'api_admin_week': return api_admin_week(a, b);
+    case 'api_admin_register': return api_admin_register(a, b);
+    case 'api_admin_list': return api_admin_list(a, b);
+    case 'api_admin_cancel': return api_admin_cancel(a, b);
+    case 'api_admin_change': return api_admin_change(a, b);
+    case 'api_admin_callList': return api_admin_callList(a);
+    case 'api_admin_markCalled': return api_admin_markCalled(a, b);
+    case 'api_admin_addBlock': return api_admin_addBlock(a, b);
+    case 'api_admin_releaseBlock': return api_admin_releaseBlock(a, b);
+    case 'api_admin_blockList': return api_admin_blockList(a, b);
+    case 'api_admin_monthTable': return api_admin_monthTable(a, b);
+    case 'api_admin_exportMonth': return api_admin_exportMonth(a, b);
+    default: return { status: 'DENIED' };
+  }
 }
 
 function include_(name) {
