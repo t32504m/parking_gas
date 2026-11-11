@@ -214,7 +214,7 @@ function adminChange_(admin, q) {
       if (!reason) {
         var others = allocs.filter(function (a) { return String(a['予約番号']) !== rid; });
         var prefer = v.preferSpace || neighborSpaces_(readAll_(SHEETS.RES), others, v.date, v.slotId, v.building, v.room, rid);
-        spaces = chooseSpaces_(activeSpaces_(others, v.date, v.slotId), qty, prefer, blockedSpaces_(activeBlocks_(v.date, v.date), v.date, v.slotId));
+        spaces = chooseSpaces_(activeSpaces_(others, v.date, v.slotId), qty, prefer, blockedSpaces_(activeBlocks_(v.date, v.date), v.date, v.slotId), capacityFor_(CHANNELS.PHONE));
         if (!spaces) reason = 'FULL';
       }
       if (reason) return { status: 'REJECTED', reason: reason, reasonText: REASON_TEXT[reason] || REASON_TEXT.INVALID };

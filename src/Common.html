@@ -118,11 +118,13 @@ var App = window.App || {};
   };
 
   /** 要素を見える位置に出し、読み上げの起点にする */
-  App.reveal = function (el) {
+  /** el まで画面を動かす。smooth のときは、ゆっくり滑らかに動かす（動きを減らす設定の端末では、すぐに動かす） */
+  App.reveal = function (el, smooth) {
     if (!el) return;
     el.setAttribute('tabindex', '-1');
     el.focus({ preventScroll: true });
-    el.scrollIntoView({ block: 'start', behavior: 'auto' });
+    var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ block: 'start', behavior: smooth && !calm ? 'smooth' : 'auto' });
   };
   window.App = App;
 }());

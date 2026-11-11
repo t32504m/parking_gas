@@ -117,6 +117,11 @@ function capacity_() {
   return n >= 1 ? Math.min(n, SPACES.length) : SPACES.length;
 }
 
+/** 1コマに入れられる台数。住民の申込みは上限（capacityPerSlot）まで。管理者の代行登録・変更は全ての区画まで（D-040） */
+function capacityFor_(channel) {
+  return channel === CHANNELS.ONLINE ? capacity_() : SPACES.length;
+}
+
 /** 1回に予約できる台数 */
 function maxQuantity_() {
   return Math.max(1, Math.min(Number(rules_().maxQuantityPerRequest) || 1, capacity_()));

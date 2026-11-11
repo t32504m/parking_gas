@@ -132,14 +132,16 @@ test('[UI-10][A-07] 電話連絡が必要な件数が常に見え、一覧で連
   assert.equal((await f.locator('#calls-n').innerText()).trim(), '0');
 });
 
-test('[UI-11][A-09][A-05] PC幅で1週間の台帳が1画面に入り、印刷でき、名前で探せる', async (t) => {
+test('[UI-11][A-09][A-05] PC幅で台帳（今月と来月）が出て、今日の行が最初の画面に入り、印刷でき、名前で探せる', async (t) => {
   const ui = await openApp({ as: 'admin', device: 'Desktop Chrome' });
   t.after(() => ui.close());
   const f = ui.frame();
   await login(ui);
-  const box = await f.locator('#board table').boundingBox();
+  // 最初の頁は今月と来月の2つの表（D-040）。今日の行は、開いたときの画面の中にある
+  assert.equal(await f.locator('#board table.sheet').count(), 2, '今月と来月の表が出ていない');
+  const today = await f.locator('#board tr.today').boundingBox();
   const vp = ui.page.viewportSize();
-  assert.ok(box.y + box.height <= vp.height, `1週間の台帳が1画面に入らない（下端 ${Math.round(box.y + box.height)}px）`);
+  assert.ok(today && today.y + today.height <= vp.height, `今日の行が最初の画面に入らない（下端 ${today && Math.round(today.y + today.height)}px）`);
   const night24 = f.locator('#board tbody tr', { hasText: '10/24' });
   assert.equal(await night24.locator('button.cell.taken').count(), 3, '10/24 夜の3台が台帳に出ていない');
   assert.ok(await f.getByRole('button', { name: '印刷' }).isVisible());
@@ -151,7 +153,7 @@ test('[UI-11][A-09][A-05] PC幅で1週間の台帳が1画面に入り、印刷�
   await ui.shot('UI-11-台帳PC');
 });
 
-test('[UI-13] 本番の設定（1コマ2台・1回1台）では、2台入ったコマの残りの区画は「満」で押せず、登録に台数の選択が出ない', async (t) => {
+test('[UI-13] 本番の設定（住民には1コマ2台・1回1台）でも、管理者は2台入ったコマの残りの93番に登録でき、登録に台数の選択が出ない（D-040）', async (t) => {
   const ui = await openApp({ as: 'admin', device: 'Desktop Chrome' });
   t.after(() => ui.close());
   const { RULES } = require('../helpers');
@@ -160,12 +162,9 @@ test('[UI-13] 本番の設定（1コマ2台・1回1台）では、2台入った�
   await ui.page.reload();
   const f = ui.frame();
   await login(ui);
-  // 10/25 昼は2台入っている。区画は3つ（91・92・93）並ぶが、残りの1つは「満」で押せない
-  const cap = f.getByLabel('10月25日（日） B 昼 11〜14時 93番 2台で満車');
-  assert.equal(await cap.count(), 1, '残りの区画が「満」になっていない');
-  assert.equal(await f.getByRole('button', { name: /10月25日（日） B 昼 11〜14時 \d+番 空き/ }).count(), 0, '2台入ったコマにまだ登録できる');
-  // 1台入っている 10/25 午後は、あと1台だけ登録できる。台数の選択は出ない
-  await f.getByRole('button', { name: '10月25日（日） C 午後 14〜17時 93番 空き' }).click();
+  // 10/25 昼は2台入っている。住民には満車だが、管理者は残りの93番を押して登録できる
+  assert.equal(await f.locator('#board .cell.cap').count(), 0, '「満」が残っている');
+  await f.getByRole('button', { name: '10月25日（日） B 昼 11〜14時 93番 空き' }).click();
   await f.getByRole('heading', { name: '登録' }).waitFor();
   assert.equal(await f.getByRole('button', { name: '2台', exact: true }).count(), 0, '台数の選択が出ている');
   await ui.shot('UI-13-本番の設定の台帳');
@@ -202,24 +201,13 @@ test('[UI-14] 期間と駐車場を選んで、まとめて使用禁止にでき
   const row = ui.app.host.dumpSheet(ui.app.spreadsheetId, '使用禁止').rows[0];
   assert.equal(row['駐車場'], '93');
   await ui.shot('UI-14-使用禁止');
-  // 2台入っている 10/25 昼の「満」を押すと、管理者が使う形で、その枠だけを止められる
-  await f.getByRole('button', { name: '10月25日（日） B 昼 11〜14時 93番 2台で満車' }).click();
-  assert.equal(await f.getByRole('button', { name: '管理者が使う', exact: true }).getAttribute('aria-pressed'), 'true');
-  assert.equal(await f.getByRole('button', { name: 'B 昼', exact: true }).getAttribute('aria-pressed'), 'true');
-  await f.getByRole('button', { name: '確認へ進む' }).click();
-  await ui.waitIdle();
-  await f.getByRole('button', { name: '使用禁止にする', exact: true }).click();
-  await ui.waitIdle();
-  await f.getByRole('heading', { name: '使用禁止にしました' }).waitFor();
-  await ui.waitIdle();
-  assert.match(await f.getByRole('button', { name: /10月25日（日） B 昼 11〜14時 93番 使用禁止/ }).innerText(), /管理者/);
   // 網かけを押すと中身が出て、解除できる
   await f.getByRole('button', { name: /10月22日（木） A 朝 8〜11時 93番 使用禁止/ }).click();
   await f.getByRole('button', { name: 'この使用禁止を解除する' }).click();
   await ui.waitIdle();
   await f.getByText('解除しました').waitFor();
   await ui.waitIdle();
-  assert.equal(await f.locator('#board button.cell.block').count(), 1, '解除した分が台帳に残っている');
+  assert.equal(await f.locator('#board button.cell.block').count(), 0, '解除した分が台帳に残っている');
   assert.deepEqual(ui.pageErrors, []);
 });
 
@@ -250,13 +238,13 @@ test('[UI-15][A-09] 予約表：これまでの Excel と同じ形（日付・�
   await ui.waitIdle();
   await f.getByText('「予約表 2026年10月」に書き出しました').waitFor();
   assert.ok(ui.app.host.dumpSheet(ui.app.spreadsheetId, '予約表 2026年10月'), 'シートが作られていない');
-  // 次の月へ移れる。「今週」で台帳に戻る
+  // 次の月へ移れる。「今月」で台帳（最初の頁）に戻る
   await f.getByRole('button', { name: '次の月' }).click();
   await ui.waitIdle();
   assert.match(await f.locator('#h-week').innerText(), /2026年11月/);
-  await f.getByRole('button', { name: '今週' }).click();
+  await f.getByRole('button', { name: '今月' }).click();
   await ui.waitIdle();
-  assert.ok(await f.locator('#board table.sheet').count(), '1週間の台帳に戻らない');
+  assert.ok(await f.locator('#board table.sheet').count(), '台帳に戻らない');
   assert.deepEqual(ui.pageErrors, []);
 });
 

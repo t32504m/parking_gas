@@ -14,10 +14,9 @@
     <section id="login" hidden></section>
     <section id="app" hidden>
       <div class="tools no-print" id="tools">
-        <button type="button" class="btn t-prev" id="prev"><span class="tx">前の週</span></button>
-        <button type="button" class="btn t-this" id="this">今週</button>
-        <button type="button" class="btn t-next" id="next"><span class="tx">次の週</span></button>
-        <button type="button" class="btn t-nextm" id="nextm">次の月</button>
+        <button type="button" class="btn t-prev" id="prev"><span class="tx">前の月</span></button>
+        <button type="button" class="btn t-this" id="this">今月</button>
+        <button type="button" class="btn t-next" id="next"><span class="tx">次の月</span></button>
         <h2 id="h-week" class="num t-week"></h2>
         <form id="sf" class="row t-find" role="search" novalidate>
           <input class="in" id="q" autocomplete="off" placeholder="名前・部屋・予約番号" aria-label="名前・部屋・予約番号で探す">
@@ -29,7 +28,7 @@
         <button type="button" class="btn plain only-narrow t-out" id="logout2">管理を終える</button>
       </div>
       <div class="split" id="split">
-        <section id="board" aria-label="1週間の予約表"></section>
+        <section id="board" aria-label="台帳"></section>
         <aside class="panel sheet-over" id="panel" hidden aria-live="polite" role="dialog" aria-labelledby="h-panel"></aside>
       </div>
     </section>
@@ -49,7 +48,7 @@
     var SLOT_LABEL = { S1: 'A 朝', S2: 'B 昼', S3: 'C 午後', S4: 'D 夜' };
     var A = {
       token: App.session.get('adminToken'), name: App.session.get('adminName') || '',
-      start: monday(TODAY), avail: {}, resv: [], byId: {}, view: null, ctx: null, cap: SPACES.length, maxQ: 1, blocks: [], blockById: {},
+      page: null, avail: {}, resv: [], byId: {}, view: null, ctx: null, cap: SPACES.length, maxQ: 1, blocks: [], blockById: {},
       mode: 'week', month: TODAY.slice(0, 7), table: null, exported: null, draft: newDraft(),
     };
     /** 登録の入力（お名前・部屋番号など）。枠を押し直しても、閉じても、登録できるまで残す（電話口では名前を先に聞くため。D-022） */
@@ -105,7 +104,7 @@
     function showApp() {
       $('login').hidden = true; $('app').hidden = false; $('logout').hidden = false; $('calls').hidden = false;
       $('who').textContent = A.name + ' さん';
-      loadWeek(); loadCalls();
+      loadBoard(); loadCalls();
     }
 
     // ------------------------------------------------------------ 予約表
@@ -141,33 +140,40 @@
         loadedAt = Date.now();
       });
     }
-    /** 見ている週を出す。fresh のときは、持っている中身を捨てて読み直す（登録・取消し・変更の後など） */
-    function loadWeek(fresh) {
-      if (A.mode === 'month') return loadMonth();
-      var to = App.addDays(A.start, 6);
-      var sh = function (d) { return (+d.slice(5, 7)) + '/' + (+d.slice(8)); };
-      $('h-week').innerHTML = '<span class="only-wide">' + esc(App.md(A.start) + '〜' + (A.start.slice(0, 7) === to.slice(0, 7) ? App.md(to).replace(/^\d+月/, '') : App.md(to))) + '</span><span class="only-narrow">' + esc(sh(A.start) + '〜' + sh(to)) + '</span>';
-      if (fresh === true) LOADED = {};
-      var need = [monthOf(A.start)];
-      if (monthOf(to) !== need[0]) need.push(monthOf(to));
-      // 初めて開いたときは、今月と来月も一緒に読む
-      if (!loadedAt) need.push(monthOf(TODAY), App.shiftMonth(monthOf(TODAY), 1));
-      var missing = need.filter(function (m) { return !LOADED[m]; }).sort();
-      if (!missing.length) { renderBoard(); return Promise.resolve(); }
-      var list = [];
-      for (var m = missing[0]; m <= missing[missing.length - 1]; m = App.shiftMonth(m, 1)) if (!LOADED[m]) list.push(m);
-      // 読み直しのときは、今の表を出したまま待つ（表が一度消えないように）
-      if (!weekShown()) $('board').innerHTML = App.busy('読み込んでいます');
-      var want = A.start;
-      // 読んでいる間に予約表（月）へ切り替えた・別の週へ移ったときは、描かない（後から描くと、月の表を上書きする）
-      return loadMonths(list).then(function () { if (A.mode === 'week' && A.start === want) renderBoard(); }, retryOn(function () { loadWeek(fresh); }));
+    // 台帳の頁（D-040）。月の単位で「前の月・次の月」で移る（住民の画面と同じ導線）。
+    // 最初の頁だけが特別で、今日を含む週の月曜から来月の終わりまで（今月と来月の表を縦に並べる）。
+    // 「次の月」で来月だけ → 再来月だけ、と1か月ずつ。来月から「前の月」で最初の頁に戻る。A.page は null（最初の頁）か 'YYYY-MM'
+    var THIS_M = monthOf(TODAY), NEXT_M = App.shiftMonth(THIS_M, 1);
+    function pageFrom() { return A.page ? A.page + '-01' : monday(TODAY); }
+    function pageTo() { return monthEnd(A.page || NEXT_M); }
+    function pageDays() { var out = []; for (var d = pageFrom(); d <= pageTo(); d = App.addDays(d, 1)) out.push(d); return out; }
+    function nextPage(p) { var m = App.shiftMonth(p || NEXT_M, 1); if (!p) return NEXT_M; return m === THIS_M ? null : m; }
+    function prevPage(p) { if (!p) return App.shiftMonth(THIS_M, -1); var m = App.shiftMonth(p, -1); return m === THIS_M ? null : m; }
+    function pageTitle() {
+      if (!A.page) return (+THIS_M.slice(5)) + '月・' + (+NEXT_M.slice(5)) + '月';
+      return '<span class="only-wide">' + A.page.slice(0, 4) + '年</span>' + (+A.page.slice(5)) + '月';
     }
-    /** 見ている週の日が、全て読んである */
-    function weekShown() { return !!(A.avail[A.start] && A.avail[App.addDays(A.start, 6)]); }
+    /** 見ている頁を出す。fresh のときは、持っている中身を捨てて読み直す（登録・取消し・変更の後など） */
+    function loadBoard(fresh) {
+      if (A.mode === 'month') return loadMonth();
+      $('h-week').innerHTML = pageTitle();
+      if (fresh === true) LOADED = {};
+      var need = [];
+      for (var m = monthOf(pageFrom()); m <= monthOf(pageTo()); m = App.shiftMonth(m, 1)) need.push(m);
+      var list = need.filter(function (x) { return !LOADED[x]; });
+      if (!list.length) { renderBoard(); return Promise.resolve(); }
+      // 読み直しのときは、今の表を出したまま待つ（表が一度消えないように）
+      if (!pageShown()) $('board').innerHTML = App.busy('読み込んでいます');
+      var want = A.page;
+      // 読んでいる間に予約表（月）へ切り替えた・別の頁へ移ったときは、描かない（後から描くと、ほかの表を上書きする）
+      return loadMonths(list).then(function () { if (A.mode === 'week' && A.page === want) renderBoard(); }, retryOn(function () { loadBoard(fresh); }));
+    }
+    /** 見ている頁の日が、全て読んである */
+    function pageShown() { return !!(A.avail[pageFrom()] && A.avail[pageTo()]); }
     // 画面に戻ったとき（ほかの管理者が入れた予約を見せるため）。1分より前に読んだものだけ読み直す
     document.addEventListener('visibilitychange', function () {
       if (document.hidden || $('app').hidden || A.mode !== 'week' || !loadedAt || Date.now() - loadedAt < 60000) return;
-      loadWeek(true);
+      loadBoard(true);
     });
     /** 読込みが通信で失敗したとき：「もう一度読み込む」を出す（確認切れのときは確認画面に戻っている） */
     function retryOn(load) {
@@ -207,14 +213,25 @@
       return '<button type="button" class="cell add' + past + (sel ? ' picked' : '') + '" data-date="' + date + '" data-slot="' + s.slotId + '" data-space="' + space + '" aria-label="' + esc(where + (s.past ? ' 空き（過ぎた時間）' : ' 空き')) + '"></button>';
     }
 
+    var TAB_COLS = 4; // スマホの日付の札の列の数（Styles の .daytabs と同じ）
+    /** スマホ：1日の表（時間帯 × 区画） */
+    function dayTable(date) {
+      var h = ['<div class="dt-day" id="dt-day"><h3>' + esc(App.md(date)) + (date === TODAY ? '<span class="today-tag">今日</span>' : '') + '</h3>'];
+      h.push('<table class="sheet"><colgroup><col style="width: 26%"><col><col><col></colgroup><thead><tr><th scope="col">時間帯</th>' + SPACES.map(function (sp) { return '<th scope="col"><span class="plate">' + sp + '</span></th>'; }).join('') + '</tr></thead><tbody>');
+      A.avail[date].slots.forEach(function (s) {
+        h.push('<tr><th scope="row" style="font-size:16px; padding: 2px 4px">' + App.markTag(s.slotId) + esc(s.label) + '<span class="t" style="display:block; font-weight:400">' + App.slotShort(s.slotId) + '</span></th>'
+          + SPACES.map(function (sp) { return '<td>' + cellHtml(date, s, sp) + '</td>'; }).join('') + '</tr>');
+      });
+      h.push('</tbody></table></div>');
+      return h.join('');
+    }
     function renderBoard() {
-      var days = []; for (var i = 0; i < 7; i++) days.push(App.addDays(A.start, i));
-      days = days.filter(function (d) { return A.avail[d]; });
+      var days = pageDays().filter(function (d) { return A.avail[d]; });
       if (!days.length) { $('board').innerHTML = ''; return; }
       var metas = A.avail[days[0]].slots;
       var wide = window.matchMedia('(min-width: 900px)').matches;
       var h = [];
-      // 週が月をまたぐときは、月ごとに表を分けて離し、月の見出しを付ける（別の月だと分かるように。D-038）
+      // 月ごとに表を分けて離し、月の見出しを付ける（別の月だと分かるように。D-038・D-040）
       var groups = [];
       days.forEach(function (d) { var g = groups[groups.length - 1]; if (g && g.m === monthOf(d)) g.days.push(d); else groups.push({ m: monthOf(d), days: [d] }); });
       if (wide) {
@@ -234,24 +251,22 @@
           h.push('</tbody></table>');
         });
       } else {
+        // 過ぎた日は、予約がある日だけ出す（過ぎた日で札が埋まらないように）
         var shown = days.filter(function (d) { return d >= TODAY || A.resv.some(function (x) { return x.date === d; }); });
         if (!shown.length) shown = days;
         if (shown.indexOf(A.day) < 0) A.day = shown.indexOf(TODAY) >= 0 ? TODAY : shown[0];
-        h.push('<div class="daytabs" role="group" aria-label="日付">' + shown.map(function (d, i) {
-          var free = 0; A.avail[d].slots.forEach(function (s) { if (!s.closed) free += room(d, s.slotId); });
-          var w = App.dow(d);
-          // 月が変わる所に、月の札を挟む（別の月だと分かるように）
-          var mk = i > 0 && monthOf(d) !== monthOf(shown[i - 1]) ? '<span class="dt-month" aria-hidden="true">' + (+d.slice(5, 7)) + '月</span>' : '';
-          return mk + '<button type="button" class="dt' + (w === 0 ? ' sun' : w === 6 ? ' sat' : '') + '" data-day="' + d + '" aria-pressed="' + (d === A.day) + '" aria-label="' + esc(App.md(d) + ' 空き' + free) + '"><span class="d"><b>' + (+d.slice(8)) + '</b><span>' + App.wd(d) + '</span></span><span class="fr">' + (free ? '空き' + free : '満') + '</span></button>';
-        }).join('') + '</div>');
-        [A.day].forEach(function (date) {
-          h.push('<h3 style="margin: 12px 0 4px">' + esc(App.md(date)) + (date === TODAY ? '<span class="today-tag">今日</span>' : '') + '</h3>');
-          h.push('<table class="sheet"><colgroup><col style="width: 26%"><col><col><col></colgroup><thead><tr><th scope="col">時間帯</th>' + SPACES.map(function (sp) { return '<th scope="col"><span class="plate">' + sp + '</span></th>'; }).join('') + '</tr></thead><tbody>');
-          A.avail[date].slots.forEach(function (s) {
-            h.push('<tr><th scope="row" style="font-size:16px; padding: 2px 4px">' + App.markTag(s.slotId) + esc(s.label) + '<span class="t" style="display:block; font-weight:400">' + App.slotShort(s.slotId) + '</span></th>'
-              + SPACES.map(function (sp) { return '<td>' + cellHtml(date, s, sp) + '</td>'; }).join('') + '</tr>');
-          });
-          h.push('</tbody></table>');
+        var sg = [];
+        shown.forEach(function (d) { var g = sg[sg.length - 1]; if (g && g.m === monthOf(d)) g.days.push(d); else sg.push({ m: monthOf(d), days: [d] }); });
+        sg.forEach(function (g) {
+          if (sg.length > 1) h.push('<h3 class="month-h">' + (+g.m.slice(5)) + '月</h3>');
+          // 押した日の表は、その札の列のすぐ下に開く（札が多くても、押した所から離れないように）
+          var at0 = g.days.indexOf(A.day), rowEnd = at0 < 0 ? -1 : Math.min(g.days.length - 1, Math.floor(at0 / TAB_COLS) * TAB_COLS + TAB_COLS - 1);
+          h.push('<div class="daytabs" role="group" aria-label="' + (+g.m.slice(5)) + '月の日付">' + g.days.map(function (d, i) {
+            var free = 0; A.avail[d].slots.forEach(function (s) { if (!s.closed) free += room(d, s.slotId); });
+            var w = App.dow(d);
+            return '<button type="button" class="dt' + (w === 0 ? ' sun' : w === 6 ? ' sat' : '') + '" data-day="' + d + '" aria-pressed="' + (d === A.day) + '" aria-label="' + esc(App.md(d) + ' 空き' + free) + '"><span class="d"><b>' + (+d.slice(8)) + '</b><span>' + App.wd(d) + '</span></span><span class="fr">' + (free ? '空き' + free : '満') + '</span></button>'
+              + (i === rowEnd ? dayTable(A.day) : '');
+          }).join('') + '</div>');
         });
       }
       $('board').innerHTML = h.join('');
@@ -272,26 +287,23 @@
     var lastWide = window.matchMedia('(min-width: 900px)').matches;
     window.addEventListener('resize', function () { var w = window.matchMedia('(min-width: 900px)').matches; if (w !== lastWide) { lastWide = w; if (A.mode === 'week') renderBoard(); } });
 
-    $('prev').onclick = function () { if (A.mode === 'month') { A.month = App.shiftMonth(A.month, -1); A.exported = null; return loadMonth(); } A.start = App.addDays(A.start, -7); A.day = null; loadWeek(); };
-    $('next').onclick = function () { if (A.mode === 'month') { A.month = App.shiftMonth(A.month, 1); A.exported = null; return loadMonth(); } A.start = App.addDays(A.start, 7); A.day = null; loadWeek(); };
-    $('this').onclick = function () { setMode('week'); A.start = monday(TODAY); A.day = null; loadWeek(); };
-    // 次の月：見ている週の終わりの月の、次の月の1日がある週へ（次の週と同じ動き）
-    $('nextm').onclick = function () { A.start = monday(App.shiftMonth(monthOf(App.addDays(A.start, 6)), 1) + '-01'); A.day = null; loadWeek(); };
+    function goPage(p) { A.page = p; A.day = null; loadBoard(); window.scrollTo(0, 0); }
+    $('prev').onclick = function () { if (A.mode === 'month') { A.month = App.shiftMonth(A.month, -1); A.exported = null; return loadMonth(); } goPage(prevPage(A.page)); };
+    $('next').onclick = function () { if (A.mode === 'month') { A.month = App.shiftMonth(A.month, 1); A.exported = null; return loadMonth(); } goPage(nextPage(A.page)); };
+    $('this').onclick = function () { setMode('week'); goPage(null); };
 
     // ------------------------------------------------------------ 予約表（これまでの Excel の「駐車場予約表」と同じ形の、月の表）
     function setMode(m) {
       A.mode = m;
       $('sheetview').setAttribute('aria-pressed', String(m === 'month'));
       $('app').classList.toggle('month-mode', m === 'month');
-      $('prev').querySelector('.tx').textContent = m === 'month' ? '前の月' : '前の週';
-      $('next').querySelector('.tx').textContent = m === 'month' ? '次の月' : '次の週';
-      $('board').setAttribute('aria-label', m === 'month' ? '月の予約表' : '1週間の予約表');
+      $('board').setAttribute('aria-label', m === 'month' ? '月の予約表' : '台帳');
     }
     $('sheetview').onclick = function () {
       closePanel(true);
-      if (A.mode === 'month') { setMode('week'); loadWeek(); return; }
-      // 見ている週に今日があれば今月、なければその週の月
-      A.month = A.start <= TODAY && App.addDays(A.start, 6) >= TODAY ? TODAY.slice(0, 7) : App.addDays(A.start, 3).slice(0, 7);
+      if (A.mode === 'month') { setMode('week'); loadBoard(); return; }
+      // 最初の頁なら今月、ほかはその頁の月
+      A.month = A.page || THIS_M;
       A.exported = null; setMode('month'); loadMonth();
     };
     function loadMonth() {
@@ -415,7 +427,7 @@
       c.step = 'sending'; renderPanel();
       adminCall('api_admin_register', req).then(function (r) {
         c.result = r; c.step = 'result'; renderPanel(); App.reveal($('h-panel'));
-        if (r.status === 'CONFIRMED') { A.draft = newDraft(); loadWeek(true); if (c.form.email) loadCalls(); }
+        if (r.status === 'CONFIRMED') { A.draft = newDraft(); loadBoard(true); if (c.form.email) loadCalls(); }
       }, function (e) { if (e && e.message === 'denied') return; c.result = { status: 'NETWORK' }; c.step = 'result'; renderPanel(); });
     }
 
@@ -483,7 +495,7 @@
         name: f.name, building: f.building, room: f.room, phone: f.phone, email: f.email }).then(function (r) {
         if (r.status === 'CHANGED') {
           var n = r.reservation; ['date', 'slotId', 'slotLabel', 'timeText', 'spaces', 'name', 'building', 'room', 'phone', 'email'].forEach(function (k) { x[k] = n[k]; });
-          c.err = ''; c.step = 'changed'; renderPanel(); App.reveal($('h-panel')); loadWeek(true);
+          c.err = ''; c.step = 'changed'; renderPanel(); App.reveal($('h-panel')); loadBoard(true);
         } else { c.err = r.reasonText || 'この内容では変更できません'; c.step = 'edit'; renderPanel(); App.reveal($('h-panel')); }
       }, function (er) { if (er && er.message === 'denied') return; c.err = 'もう一度「変更する」を押してください（二重にはなりません）'; c.step = 'editConfirm'; renderPanel(); });
     }
@@ -491,7 +503,7 @@
       var c = A.ctx; var x = A.byId[c.rid];
       $('c-go').disabled = true; $('c-out').innerHTML = App.busy('取り消しています');
       adminCall('api_admin_cancel', { reservationId: x.reservationId, reason: c.reason, requestId: c.requestId || (c.requestId = App.newRequestId()) }).then(function (r) {
-        if (r.status === 'CANCELLED') { x.state = '取消済み'; c.step = 'done'; renderPanel(); App.reveal($('h-panel')); loadWeek(true); }
+        if (r.status === 'CANCELLED') { x.state = '取消済み'; c.step = 'done'; renderPanel(); App.reveal($('h-panel')); loadBoard(true); }
         else { $('c-go').disabled = false; $('c-out').innerHTML = App.note('ng', '取り消せませんでした', r.reasonText || ''); }
       }, function (e) { if (e && e.message === 'denied') return; $('c-go').disabled = false; $('c-out').innerHTML = App.note('wait', '通信がつながりませんでした', ''); });
     }
@@ -544,7 +556,8 @@
     // ---- 使用禁止（期間×時間帯×駐車場をまとめて止める）
     function openBlock(o) {
       o = o || {};
-      openPanel('block', { step: 'form', from: o.from || (A.start > TODAY ? A.start : TODAY), to: o.to || o.from || (A.start > TODAY ? A.start : TODAY),
+      var first = pageFrom() > TODAY ? pageFrom() : TODAY;
+      openPanel('block', { step: 'form', from: o.from || first, to: o.to || o.from || first,
         slots: o.slots || IDS.slice(), spaces: o.spaces || SPACES.slice(), reason: o.reason || '工事・点検', memo: '', requestId: null, preview: null, result: null });
     }
     function scopeText(slots, spaces) {
@@ -631,7 +644,7 @@
         if (r.status !== 'OK') { btn.disabled = false; return; }
         if (A.view === 'blockDetail') { A.ctx.step = 'done'; renderPanel(); }
         else if (A.view === 'blocks') { A.ctx.list = A.ctx.list.filter(function (b) { return b.blockId !== id; }); renderPanel(); }
-        loadWeek(true);
+        loadBoard(true);
       }, function () { btn.disabled = false; });
     }
 
@@ -708,7 +721,7 @@
           c.step = 'sending'; renderPanel();
           adminCall('api_admin_addBlock', blockReq(true)).then(function (r) {
             if (r.status !== 'OK') { c.step = 'confirm'; renderPanel(); $('b-out').innerHTML = App.note('ng', r.reasonText || '登録できませんでした', ''); return; }
-            c.result = r; c.step = 'done'; renderPanel(); App.reveal($('h-panel')); loadWeek(true);
+            c.result = r; c.step = 'done'; renderPanel(); App.reveal($('h-panel')); loadBoard(true);
           }, function (e2) { if (e2 && e2.message === 'denied') return; c.step = 'confirm'; renderPanel(); $('b-out').innerHTML = App.note('wait', '通信がつながりませんでした。もう一度押してください', ''); });
         };
         if ($('b-done')) $('b-done').onclick = function () { closePanel(); };

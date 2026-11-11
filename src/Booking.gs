@@ -182,9 +182,9 @@ function activeSpaces_(allocs, date, slotId) {
  * 空いている駐車場を選ぶ。1コマの台数の上限（capacityPerSlot）を超えず、使用禁止の区画（blocked）は使わない。
  * 管理者の割当て規則（未決定）に備えて関数を分けておく
  */
-function chooseSpaces_(used, quantity, prefer, blocked) {
+function chooseSpaces_(used, quantity, prefer, blocked, cap) {
   blocked = blocked || {};
-  if (Object.keys(used).length + quantity > capacity_()) return null;
+  if (Object.keys(used).length + quantity > (cap || capacity_())) return null;
   var free = SPACES.filter(function (s) { return !used[s] && !blocked[s]; });
   // 先に使う区画（管理者が表で押した区画、または連続の予約の区画。D-031）。空いていなければ、ほかの空いている区画
   var first = [].concat(prefer || []).filter(function (s, i, a) { return free.indexOf(s) >= 0 && a.indexOf(s) === i; });
@@ -258,7 +258,7 @@ function book_(req, channel, operator) {
     var spaces = null;
     if (!reason) {
       var prefer = r.preferSpace || neighborSpaces_(reservations, allocs, r.date, r.slotId, r.building, r.room, id);
-      spaces = chooseSpaces_(activeSpaces_(allocs, r.date, r.slotId), r.quantity, prefer, blockedSpaces_(activeBlocks_(r.date, r.date), r.date, r.slotId));
+      spaces = chooseSpaces_(activeSpaces_(allocs, r.date, r.slotId), r.quantity, prefer, blockedSpaces_(activeBlocks_(r.date, r.date), r.date, r.slotId), capacityFor_(channel));
       if (!spaces) reason = 'FULL';
     }
     var row = slotFields_(r.date, r.slotId, r.quantity);
@@ -372,7 +372,8 @@ function availability_(from, to, scope) {
   if (resident && from < first) from = first;
   if (resident && to > until) to = until;
   var blocks = activeBlocks_(from, to);
-  var cap = capacity_();
+  // 住民には上限（capacityPerSlot）で満車と見せる。管理者は全ての区画まで入れられる（D-040）
+  var cap = resident ? capacity_() : SPACES.length;
   var open = ruleOn_('residentBooking');
   var days = [];
   for (var d = from; d <= to; d = addDaysYmd_(d, 1)) {

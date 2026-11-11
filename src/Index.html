@@ -22,6 +22,11 @@
           <button type="button" class="btn no-print" id="next"><span class="tx">次の月</span></button>
         </div>
         <div id="sheet"></div>
+        <div class="weeknav bottomnav no-print" id="bottomnav">
+          <button type="button" class="btn t-prev" id="prev2"><span class="tx">前の月</span></button>
+          <span class="num" id="h-month2" aria-hidden="true"></span>
+          <button type="button" class="btn t-next" id="next2"><span class="tx">次の月</span></button>
+        </div>
       </section>
       <section class="dayview" id="dayview" aria-live="polite"></section>
       <aside class="panel sheet-over" id="panel" hidden aria-live="polite" role="dialog" aria-labelledby="h-panel"></aside>
@@ -113,8 +118,9 @@
 
     function render() {
       $('h-month').textContent = monthTitle(S.month);
-      $('prev').disabled = S.month <= VIEW_FROM.slice(0, 7);
-      $('next').disabled = !S.until || monthFirst(App.shiftMonth(S.month, 1)) > S.until;
+      $('prev').disabled = $('prev2').disabled = S.month <= VIEW_FROM.slice(0, 7);
+      $('next').disabled = $('next2').disabled = !S.until || monthFirst(App.shiftMonth(S.month, 1)) > S.until;
+      $('h-month2').textContent = $('h-month').textContent;
       if (S.failed) {
         $('sheet').innerHTML = App.note('ng', '空き状況を読み込めませんでした', '') + '<button type="button" class="btn main" id="reload">もう一度読み込む</button>';
         $('reload').onclick = load; $('dayview').innerHTML = ''; return;
@@ -153,7 +159,7 @@
       $('sheet').innerHTML = h.join('');
       App.on($('sheet'), 'button[data-day]', function (b) {
         S.day = b.getAttribute('data-day'); render();
-        if (!window.matchMedia('(min-width: 900px)').matches) App.reveal($('h-day'));
+        if (!window.matchMedia('(min-width: 900px)').matches) App.reveal($('h-day'), true);
       });
     }
 
@@ -176,7 +182,8 @@
         x.slots.forEach(function (s) { h.push('<td>' + slotCell(d, s) + '</td>'); });
         h.push('</tr>');
       }
-      h.push('</tbody></table>');
+      // 一覧の下にも時間帯の見出し（長い一覧の下の方でも、どの列か分かるように）。A〜D と料金は付けず、小さめに
+      h.push('</tbody><tfoot aria-hidden="true"><tr class="foot-head"><th></th>' + any.map(function (s) { return '<th>' + esc(s.label) + '</th>'; }).join('') + '</tr></tfoot></table>');
       $('sheet').innerHTML = (any.length ? h.join('') : '');
       bindSlots($('sheet'));
     }
@@ -253,6 +260,9 @@
     }
     $('prev').onclick = function () { move(-1); };
     $('next').onclick = function () { move(1); };
+    // 一覧の下の前・次：移った月は上から見る
+    $('prev2').onclick = function () { move(-1); App.reveal($('h-month')); };
+    $('next2').onclick = function () { move(1); App.reveal($('h-month')); };
 
     // ------------------------------------------------------------ 以下は、住民の受付を開いたときだけ使う（今は電話受付のため出ない）
     function openPanel(view) {

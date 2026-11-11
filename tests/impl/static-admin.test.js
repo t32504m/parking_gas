@@ -123,10 +123,10 @@ test('[S-UI-08] 外の画面の台帳の名前を押して理由を選んで取�
     await page.getByRole('button', { name: '本人から電話' }).click();
     await page.getByRole('button', { name: '取り消す', exact: true }).click();
     await page.getByText('取り消しました').waitFor();
-    // 台数の数は管理者向けの空き状況にだけある（D-027）。この週の既定設定は1コマ2台
+    // 台数の数は管理者向けの空き状況にだけある（D-027）。管理者は3つの区画まで数える（D-040）
     const token = await tokenOf(page);
     const av = (await s.app.host.run('api_admin_availability', [{ token }, { from: '2026-11-14', to: '2026-11-14' }], { kind: 'client', user: null })).value;
-    assert.equal(av.days[0].slots.find((sl) => sl.slotId === 'S1').remaining, 2, '取り消した枠の残りが戻らない');
+    assert.equal(av.days[0].slots.find((sl) => sl.slotId === 'S1').remaining, 3, '取り消した枠の残りが戻らない');
     const log = s.app.host.dumpSheet(s.app.spreadsheetId, '操作履歴').rows.find((r) => r['操作'] === '取消し');
     assert.equal(log['理由'], '本人から電話');
     await page.waitForSelector('button[aria-label="11月14日（土） A 朝 8〜11時 91番 空き"]', { timeout: 15000 });
@@ -184,23 +184,32 @@ test('[S-UI-10] 外の画面：電話連絡が必要な件数が見え、一覧�
   } finally { await closeAll(browser, s); }
 });
 
-test('[S-UI-13] 外の画面：1コマ2台・1回1台では、2台入ったコマの残りの区画は「満」で押せず、登録に台数の選択が出ない', async () => {
-  const s = await startStatic({}); // startStatic の既定の設定が本番と同じ（1コマ2台・1回1台）
+test('[S-UI-13] 外の画面：住民には2台で満車でも、管理者は残りの93番（3台目）に登録できる。登録に台数の選択は出ない（D-040）', async () => {
+  const s = await startStatic({}); // startStatic の既定の設定が本番と同じ（住民には1コマ2台・1回1台）
   const browser = await chromium.launch();
   try {
-    const { page } = await open(s, browser, DESKTOP);
+    const { page, errors } = await open(s, browser, DESKTOP);
     await login(page, s.admin.email, s.admin.secret);
-    // 11/14 夜は2台入っている。区画は3つ（91・92・93）並ぶが、残りの1つは「満」で押せない
-    const cap = page.getByLabel('11月14日（土） D 夜 17時〜翌朝8時 93番 2台で満車');
-    await cap.waitFor({ timeout: 15000 });
-    assert.equal(await cap.count(), 1, '残りの区画が「満」になっていない');
-    assert.equal(await page.getByRole('button', { name: /11月14日（土） D 夜 17時〜翌朝8時 \d+番 空き/ }).count(), 0, '2台入ったコマにまだ登録できる');
-    // 1台入っている 11/14 朝は、あと1台だけ登録できる。台数の選択は出ない
-    await page.getByRole('button', { name: '11月14日（土） A 朝 8〜11時 93番 空き' }).click();
+    // 11/14 夜は2台入っている。残りの93番は「満」ではなく、押せる空き
+    const third = page.getByRole('button', { name: '11月14日（土） D 夜 17時〜翌朝8時 93番 空き' });
+    await third.waitFor({ timeout: 15000 });
+    assert.equal(await page.locator('#board .cell.cap').count(), 0, '「満」が残っている');
+    await third.click();
     await page.getByRole('heading', { name: '登録' }).waitFor();
     assert.equal(await page.getByRole('button', { name: '2台', exact: true }).count(), 0, '台数の選択が出ている');
     assert.equal(await page.getByRole('button', { name: '1台', exact: true }).count(), 0, '台数の選択が出ている');
     assert.equal(await page.getByRole('button', { name: '1台まで', exact: true }).count(), 0, '台数の選択が出ている');
+    await page.getByLabel('お名前').fill('三台目 試験');
+    await page.getByLabel('部屋番号').fill('303');
+    await page.getByLabel('電話番号').fill('090-3333-0003');
+    await page.getByRole('button', { name: '確認へ進む' }).click();
+    await page.getByRole('button', { name: '登録する', exact: true }).click();
+    await page.getByRole('heading', { name: '登録しました' }).waitFor();
+    await page.waitForSelector('button[aria-label="11月14日（土） D 夜 17時〜翌朝8時 93番 三台目 試験さん"]', { timeout: 15000 });
+    // 住民には、2台の時点から満車のまま
+    const res = (await s.app.host.run('api_getAvailability', [{ from: '2026-11-14', to: '2026-11-14' }], { kind: 'client', user: null })).value;
+    assert.equal(res.days[0].slots.find((sl) => sl.slotId === 'S4').available, false);
+    assert.deepEqual(errors, []);
   } finally { await closeAll(browser, s); }
 });
 
@@ -230,21 +239,12 @@ test('[S-UI-14] 外の画面：期間と駐車場を選んで、まとめて使�
     assert.equal(await page.locator('#board button.cell.block').count(), 8, '2日×4時間帯の93番が網かけになっていない');
     const row = s.app.host.dumpSheet(s.app.spreadsheetId, '使用禁止').rows[0];
     assert.equal(row['駐車場'], '93');
-    // 2台入っている 11/14 夜の「満」を押すと、管理者が使う形で、その枠だけを止められる
-    await page.getByRole('button', { name: '11月14日（土） D 夜 17時〜翌朝8時 93番 2台で満車' }).click();
-    assert.equal(await page.getByRole('button', { name: '管理者が使う', exact: true }).getAttribute('aria-pressed'), 'true');
-    assert.equal(await page.getByRole('button', { name: 'D 夜', exact: true }).getAttribute('aria-pressed'), 'true');
-    await page.getByRole('button', { name: '確認へ進む' }).click();
-    await page.getByRole('button', { name: '使用禁止にする', exact: true }).click();
-    await page.getByRole('heading', { name: '使用禁止にしました' }).waitFor();
-    assert.ok(await waitUntil(() => page.getByRole('button', { name: /11月14日（土） D 夜 17時〜翌朝8時 93番 使用禁止/ }).count().then((n) => n === 1)), '11/14 夜の93番が網かけになっていない');
-    assert.match(await page.getByRole('button', { name: /11月14日（土） D 夜 17時〜翌朝8時 93番 使用禁止/ }).innerText(), /管理者/);
     // 網かけを押すと中身が出て、解除できる
     await page.getByRole('button', { name: /11月12日（木） A 朝 8〜11時 93番 使用禁止/ }).click();
     await page.getByRole('button', { name: 'この使用禁止を解除する' }).click();
     await page.getByText('解除しました').waitFor();
-    assert.ok(await waitUntil(() => page.locator('#board button.cell.block').count().then((n) => n === 1)), '解除した分が台帳に残っている');
-    assert.equal(await page.locator('#board button.cell.block').count(), 1, '解除した分が台帳に残っている');
+    assert.ok(await waitUntil(() => page.locator('#board button.cell.block').count().then((n) => n === 0)), '解除した分が台帳に残っている');
+    assert.equal(await page.locator('#board button.cell.block').count(), 0, '解除した分が台帳に残っている');
     assert.deepEqual(errors, []);
   } finally { await closeAll(browser, s); }
 });
@@ -269,11 +269,11 @@ test('[S-UI-15] 外の画面：予約表で月の表を出し、スプレッド�
     await page.getByRole('button', { name: 'スプレッドシートに書き出す' }).click();
     await page.getByText('「予約表 2026年11月」に書き出しました').waitFor();
     assert.ok(s.app.host.dumpSheet(s.app.spreadsheetId, '予約表 2026年11月'), 'シートが作られていない');
-    // 次の月へ移れる。「今週」で台帳に戻る
+    // 次の月へ移れる。「今月」で台帳（最初の頁）に戻る
     await page.getByRole('button', { name: '次の月' }).click();
     assert.ok(await waitUntil(async () => /2026年12月/.test(await page.locator('#h-week').innerText().catch(() => ''))), '次の月に進めない');
     assert.match(await page.locator('#h-week').innerText(), /2026年12月/);
-    await page.getByRole('button', { name: '今週' }).click();
+    await page.getByRole('button', { name: '今月' }).click();
     await page.waitForSelector('#board table.sheet', { timeout: 15000 });
     assert.deepEqual(errors, []);
   } finally { await closeAll(browser, s); }
@@ -317,6 +317,9 @@ test('[S-UI-19] 外の画面：予約の名前を押して「変更する」で�
   const s = await startStatic({});
   const browser = await chromium.launch();
   try {
+    // 11/15 夜は2台入っている。管理者は3台目まで入れられる（D-040）ので、3台目を入れて満車にしておく
+    const third = await s.app.adapter.adminRegister(s.app.host, { ...reqFor(ACTORS.residents[9], { date: '2026-11-15', slotId: 'S4', channel: 'PHONE' }), email: undefined }, s.admin);
+    assert.equal(third.status, 'CONFIRMED');
     const { page, errors } = await open(s, browser, DESKTOP);
     await login(page, s.admin.email, s.admin.secret);
     await page.locator('#board .cell').first().waitFor();

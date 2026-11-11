@@ -50,6 +50,12 @@ b, strong, h1, h2, h3 { font-weight: 700; }
 /* 利用者の週の移動 */
 .weeknav { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .weeknav h2 { margin: 0 auto 0 0; }
+/* 一覧の下の前の月・次の月（一覧のときだけ） */
+.weeknav.bottomnav { justify-content: space-between; margin: 14px 0 0; }
+.weeknav.bottomnav .num { font-size: 18px; font-weight: 700; }
+.split.layout-calendar .bottomnav { display: none; }
+/* 一覧の下の時間帯の見出し：小さめ、低め */
+.sheet tfoot .foot-head th { font-size: 15px; font-weight: 700; padding: 4px 2px; color: var(--ink-2); border-top: 2px solid var(--line-2); }
 @media (max-width: 899px) {
   .weeknav #prev { order: 1; } .weeknav h2 { order: 2; flex: 1; margin: 0; text-align: center; font-size: 19px; } .weeknav #next { order: 3; }
   /* スマホの前・次は山形だけ（名前は読み上げに残す） */
@@ -335,11 +341,15 @@ button.slot:hover { background: var(--green-50); }
 .tools .t-find .btn { border-radius: 0 var(--r) var(--r) 0; }
 .tools .t-find:focus-within { box-shadow: 0 0 0 2px var(--green); }
 .tools .t-print { background: transparent; }
-#app.month-mode .t-nextm { display: none; }
-/* 週が月をまたぐとき、月ごとの表を離す（D-038） */
-#board .month-h { margin: 18px 0 6px; font-size: 18px; }
+/* 台帳の頁：月ごとの表を離す（D-038・D-040）。長い表でも、時間帯と区画の見出しが上に残る */
+#board .month-h { margin: 28px 0 8px; font-size: 20px; }
 #board .month-h:first-child { margin-top: 0; }
-.daytabs .dt-month { align-self: center; padding: 0 6px; font-weight: 700; color: var(--ink-2, inherit); white-space: nowrap; }
+#board table.sheet { overflow: clip; } /* hidden だと見出しが上に残らない。clip が使えない古い端末では、今までどおり（残らないだけ） */
+#board table.sheet > thead { position: sticky; top: 0; z-index: 2; }
+#board table.sheet > thead th { background: var(--paper); }
+/* スマホ：押した日の表は、その札の列のすぐ下に、列の幅いっぱいで開く */
+.daytabs .dt-day { grid-column: 1 / -1; margin: 4px 0 10px; }
+.daytabs .dt-day h3 { margin: 6px 0 4px; }
 @media (max-width: 899px) {
   #app:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   #app .tools { display: contents; }
@@ -353,7 +363,6 @@ button.slot:hover { background: var(--green-50); }
   #app .t-block { order: 7; }
   #app .t-sheet { order: 7; }
   #app.month-mode .t-this, #app.month-mode .t-sheet { order: 4; }
-  #app .t-nextm { order: 7; }
   #app.month-mode .tools::after { content: ""; order: 3; flex-basis: 100%; height: 0; }
   #app.panel-open .tools > * { display: none; }
   .bar .who { display: none; }

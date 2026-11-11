@@ -1,7 +1,7 @@
 'use strict';
 // 本番の運用（2026-11-07 に依頼者が決めたこと。docs/DECISIONS.md D-014）をサーバーで確かめる。
 //   ・住民は画面から予約しない（申込みはサーバーで断り、台帳に何も書かない）
-//   ・区画は 91・92・93 の3つだが、1コマは2台で運用する。1回の予約は1台
+//   ・区画は 91・92・93 の3つだが、住民には1コマ2台で見せる。管理者は3台目（全ての区画）まで入れられる（D-040）。1回の予約は1台
 //   ・電話（管理者の登録）は今日から3か月先まで受け付ける
 //   ・住民の画面に見せるのは、今日から5日後〜2か月先だけ（D-020。下の PROD_VIEW で試す）
 // 受入試験（tests/acceptance、保護）は「1コマ3台・住民が申し込める」前提のため、ここで本番の設定を試す（D-015）。
@@ -30,23 +30,28 @@ test('住民の申込みは受け付けず、台帳に何も書かない（再�
   assert.equal(c.status, 'CONFIRMED');
 }));
 
-test('1コマは2台まで。3台目は満車で断り、区画は3つのどれかに割り当てる', async (t) => withEnv(t, PROD, async (env) => {
+test('管理者の電話受付は1コマ3台（全ての区画）まで。4台目は満車で断る。住民には2台で満車と見せる（D-040）', async (t) => withEnv(t, PROD, async (env) => {
   const a = await phone(env, R[0], { slotId: 'S2' });
   const b = await phone(env, R[1], { slotId: 'S2' });
+  let res = await env.adapter.getAvailability(env.host, { from: DAY, to: DAY }, ACTORS.anonymous);
+  assert.equal(res.days[0].slots.find((s) => s.slotId === 'S2').available, false, '2台で住民に満車と見せていない');
   const c = await phone(env, R[2], { slotId: 'S2' });
+  const e4 = await phone(env, R[4], { slotId: 'S2' });
   assert.equal(a.status, 'CONFIRMED');
   assert.equal(b.status, 'CONFIRMED');
-  assert.equal(c.status, 'REJECTED');
-  assert.equal(c.reason, 'FULL');
-  const spaces = env.host.dumpSheet(env.spreadsheetId, '割当て').rows.filter((x) => x['状態'] === '有効').map((x) => String(x['駐車場']));
-  assert.equal(spaces.length, 2);
-  spaces.forEach((s) => assert.ok(['91', '92', '93'].includes(s)));
+  assert.equal(c.status, 'CONFIRMED', '管理者が3台目を入れられない');
+  assert.equal(e4.status, 'REJECTED');
+  assert.equal(e4.reason, 'FULL');
+  const spaces = env.host.dumpSheet(env.spreadsheetId, '割当て').rows.filter((x) => x['状態'] === '有効').map((x) => String(x['駐車場'])).sort();
+  assert.deepEqual(spaces, ['91', '92', '93']);
+  res = await env.adapter.getAvailability(env.host, { from: DAY, to: DAY }, ACTORS.anonymous);
+  assert.equal(res.days[0].slots.find((s) => s.slotId === 'S2').available, false);
   // 表で93番を押して登録したときは93番に入る（区画の指定は残す）
   const d = await phone(env, R[3], { slotId: 'S3', preferSpace: '93' });
   assert.deepEqual(d.raw.spaces, ['93']);
 }));
 
-test('空き状況は台数の上限2で数え、住民向けには申し込めないことを返す', async (t) => withEnv(t, PROD, async (env) => {
+test('空き状況：住民向けは上限2で数え、申し込めないことを返す。管理者向けは3つの区画で数える（D-040）', async (t) => withEnv(t, PROD, async (env) => {
   await phone(env, R[0], { slotId: 'S4' });
   const av = await env.adapter.getAvailability(env.host, { from: DAY, to: DAY }, ACTORS.anonymous);
   const s4 = av.days[0].slots.find((s) => s.slotId === 'S4');
@@ -59,9 +64,9 @@ test('空き状況は台数の上限2で数え、住民向けには申し込め�
   assert.equal(s1.online, false);
   assert.equal(av.raw.residentBooking, false);
   // 管理者には数を返す
-  assert.equal((await avail(env, DAY, 'S4')).capacity, 2);
-  assert.equal((await avail(env, DAY, 'S4')).remaining, 1);
-  assert.equal((await avail(env, DAY, 'S1')).remaining, 2);
+  assert.equal((await avail(env, DAY, 'S4')).capacity, 3);
+  assert.equal((await avail(env, DAY, 'S4')).remaining, 2);
+  assert.equal((await avail(env, DAY, 'S1')).remaining, 3);
   assert.equal(av.raw.maxQuantity, 1);
 }));
 
@@ -98,7 +103,7 @@ test('期間・時間帯・駐車場をまとめて使用禁止にすると、�
   assert.equal(r.status, 'OK');
   assert.equal(r.cells, 3 * 4 * 3);
   assert.equal((await avail(env, '2026-10-27', 'S4')).remaining, 0);
-  assert.equal((await avail(env, '2026-10-29', 'S4')).remaining, 2, '期間の外まで止まっている');
+  assert.equal((await avail(env, '2026-10-29', 'S4')).remaining, 3, '期間の外まで止まっている');
   const p = await phone(env, R[0], { date: '2026-10-27', slotId: 'S2' });
   assert.equal(p.status, 'REJECTED');
   assert.equal(p.reason, 'FULL');
@@ -110,7 +115,7 @@ test('期間・時間帯・駐車場をまとめて使用禁止にすると、�
   // 解除すると戻る
   const rel = await adm(env, 'api_admin_releaseBlock', { blockId: r.blockId });
   assert.equal(rel.status, 'OK');
-  assert.equal((await avail(env, '2026-10-27', 'S4')).remaining, 2);
+  assert.equal((await avail(env, '2026-10-27', 'S4')).remaining, 3);
   assert.equal(env.host.dumpSheet(env.spreadsheetId, '使用禁止').rows[0]['状態'], '解除');
   const log = env.host.dumpSheet(env.spreadsheetId, '操作履歴').rows.map((x) => x['操作']);
   assert.ok(log.includes('使用禁止') && log.includes('使用禁止の解除'));
@@ -119,23 +124,27 @@ test('期間・時間帯・駐車場をまとめて使用禁止にすると、�
 test('一部の駐車場だけを止めると、残りの区画で受け付ける（91・92を止めると、93の1台だけ）', async (t) => withEnv(t, PROD, async (env) => {
   await block(env, { from: DAY, to: DAY, slots: ['S1', 'S4'], spaces: ['91', '92'] });
   assert.equal((await avail(env, DAY, 'S1')).remaining, 1);
-  assert.equal((await avail(env, DAY, 'S2')).remaining, 2, '止めていない時間帯まで減った');
+  assert.equal((await avail(env, DAY, 'S2')).remaining, 3, '止めていない時間帯まで減った');
   const a = await phone(env, R[0], { slotId: 'S1' });
   const b = await phone(env, R[1], { slotId: 'S1' });
   assert.deepEqual(a.raw.spaces, ['93']);
   assert.equal(b.reason, 'FULL');
 }));
 
-test('管理者が3つ目の区画を使う：住民の予約があっても93番を「管理者が使う」にでき、住民の2台分は減らない', async (t) => withEnv(t, PROD, async (env) => {
+test('93番を「管理者が使う」で止めても、住民には残りの1台が空きと見え、電話で2台目まで入る。3台目は止めた93には入らない', async (t) => withEnv(t, PROD, async (env) => {
   await phone(env, R[0], { slotId: 'S4' });
-  assert.equal((await avail(env, DAY, 'S4')).remaining, 1);
+  assert.equal((await avail(env, DAY, 'S4')).remaining, 2);
   const r = await block(env, { from: DAY, to: DAY, slots: ['S4'], spaces: ['93'], reason: '管理者が使う' });
   assert.equal(r.status, 'OK');
   assert.deepEqual(r.conflicts, []);
-  assert.equal((await avail(env, DAY, 'S4')).remaining, 1, '管理者が3つ目を使うと、住民の空きが減った');
+  assert.equal((await avail(env, DAY, 'S4')).remaining, 1);
+  const res = await env.adapter.getAvailability(env.host, { from: DAY, to: DAY }, ACTORS.anonymous);
+  assert.equal(res.days[0].slots.find((s) => s.slotId === 'S4').available, true, '住民に空きが見えない');
   const b = await phone(env, R[1], { slotId: 'S4' });
   assert.equal(b.status, 'CONFIRMED');
   assert.notDeepEqual(b.raw.spaces, ['93']);
+  const c = await phone(env, R[2], { slotId: 'S4' });
+  assert.equal(c.reason, 'FULL', '止めた93番に入った');
 }));
 
 test('予約がある枠を止めるときは、確かめる段階で重なる予約を返し、予約は取り消さない', async (t) => withEnv(t, PROD, async (env) => {
@@ -436,8 +445,8 @@ test('予約の変更：日・時間帯を変えると、新しい枠を取っ�
   assert.ok(alc.some((x) => x['状態'] === '解放' && String(x['利用日']) === '2026-10-27'), '古い枠が放されていない');
   // 空き状況：古い枠が空き、新しい枠が埋まる
   const av = await adm(env, 'api_admin_availability', { from: '2026-10-27', to: '2026-10-28' });
-  assert.equal(av.days[0].slots.find((s) => s.slotId === 'S2').remaining, 2);
-  assert.equal(av.days[1].slots.find((s) => s.slotId === 'S4').remaining, 1);
+  assert.equal(av.days[0].slots.find((s) => s.slotId === 'S2').remaining, 3);
+  assert.equal(av.days[1].slots.find((s) => s.slotId === 'S4').remaining, 2);
   // 同じ内容の送り直し
   const again = await chg({ date: '2026-10-28', slotId: 'S4' });
   assert.equal(again.status, 'CHANGED');
@@ -451,7 +460,8 @@ test('予約の変更：変更先が満車なら何も変えずに断る。同�
   const b = await phone(env, R[1], { date: '2026-10-27', slotId: 'S1', preferSpace: '92' });
   const c = await phone(env, R[2], { date: '2026-10-27', slotId: 'S3' });
   const d = await phone(env, R[3], { date: '2026-10-27', slotId: 'S3' });
-  for (const p of [a, b, c, d]) assert.equal(p.status, 'CONFIRMED');
+  const e = await phone(env, R[4], { date: '2026-10-27', slotId: 'S3' }); // 管理者は3台目まで（D-040）
+  for (const p of [a, b, c, d, e]) assert.equal(p.status, 'CONFIRMED');
   const base = env.req(R[0], {});
   const chg = (q) => adm(env, 'api_admin_change', { reservationId: a.reservationId, name: base.name, room: base.room, phone: base.phone, ...q });
   const full = await chg({ date: '2026-10-27', slotId: 'S3' });
@@ -459,7 +469,7 @@ test('予約の変更：変更先が満車なら何も変えずに断る。同�
   assert.equal(full.reason, 'FULL');
   const row = env.host.dumpSheet(env.spreadsheetId, '予約').rows.find((x) => String(x['予約番号']) === String(a.reservationId));
   assert.equal(String(row['コマID']), 'S1', '断ったのに予約が変わった');
-  // 1コマ2台が埋まっていても、自分の区画を 91→93 に移すことはできる
+  // 91・92 が埋まっていても、自分の区画を 91→93 に移すことはできる
   const sp = await chg({ date: '2026-10-27', slotId: 'S1', preferSpace: '93' });
   assert.equal(sp.status, 'CHANGED');
   assert.deepEqual(sp.reservation.spaces, ['93']);
