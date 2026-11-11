@@ -1,5 +1,5 @@
 {
-  "sealedAt": "2026-11-09T17:13:43.650Z",
+  "sealedAt": "2026-11-11T17:42:54.104Z",
   "note": "人が内容を確認したうえで封印すること",
   "files": {
     "contract/perf-budget.json": "8380b3cbb077cb13",
@@ -51,7 +51,7 @@
     "tests/acceptance/02_concurrency.test.js": "9ef3621551784f9a",
     "tests/acceptance/03_idempotency.test.js": "e2f59b2130ce1968",
     "tests/acceptance/04_faults.test.js": "6a35df68f021fbbe",
-    "tests/acceptance/05_rules.test.js": "3dcba253faab4608",
+    "tests/acceptance/05_rules.test.js": "a7148eda8fbcbe8a",
     "tests/acceptance/06_security.test.js": "5bb4eb04e3a7d815",
     "tests/acceptance/07_notifications.test.js": "740291324fb07f78",
     "tests/acceptance/08_metrics.test.js": "dde09fd093008eb7"
