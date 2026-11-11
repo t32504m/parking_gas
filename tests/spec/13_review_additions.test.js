@@ -25,8 +25,12 @@ test('[S-042] 埋まっている区画を指定して登録しても、その区
     const b = await env.register({ date: D, preferSpace: '92' });
     assert.equal(b.status, 'CONFIRMED');
     assert.notDeepEqual(spaceOf(env, b.reservationId), ['92']);
+    // 無い区画（99）の指定は、無い区画に入れない（断るか、空いている区画にする）。D-040 で管理者は3台目まで入れる
     const c = await env.register({ date: D, preferSpace: '99' });
-    assert.notEqual(c.status, 'CONFIRMED', '上限を超えた／無い区画の指定で確定した');
+    if (c.status === 'CONFIRMED') assert.deepEqual(spaceOf(env, c.reservationId).filter((s) => !['91', '92', '93'].includes(s) || s === '92'), [], '無い区画・埋まった区画に入った');
+    const used = env.activeAllocs(D, 'S1').map((x) => String(x['駐車場']));
+    assert.equal(new Set(used).size, used.length, '同じ区画に重なった');
+    if (used.length === 3) assert.notEqual((await env.register({ date: D, preferSpace: '92' })).status, 'CONFIRMED', '4台目が入った');
   });
 });
 

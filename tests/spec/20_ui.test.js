@@ -29,11 +29,17 @@ test('[S-200] 住民の一覧：○×と A〜D だけ。△・個人情報・申
   const clickable = await f.evaluate(() => [...document.querySelectorAll('td button:not([disabled]), td a[href]')].length);
   assert.equal(clickable, 0, '時間帯の枠が押せる');
   // 次の月へ進むと、1/9 が最後
-  await f.getByRole('button', { name: '次の月' }).click(); await ui.waitIdle();
-  await f.getByRole('button', { name: '次の月' }).click(); await ui.waitIdle();
+  // D-040：一覧の上（#next）と下（#next2）に「次の月」がある。上のボタンで進み、下のボタンでも同じに動くことを見る
+  assert.equal(await f.getByRole('button', { name: '次の月' }).count(), 2, '「次の月」が上と下の2つでない');
+  await f.locator('#next').click(); await ui.waitIdle();
+  await f.locator('#next2').click(); await ui.waitIdle();
   txt = await ui.text();
   assert.ok(txt.includes('1/9') && !txt.includes('1/10'), '最後の日が 1/9 でない');
-  const nx = f.getByRole('button', { name: '次の月' });
+  assert.ok(await f.locator('#next2').isDisabled(), '最後の月で、下の「次の月」が押せる');
+  await f.locator('#prev2').click(); await ui.waitIdle();
+  assert.ok((await ui.text()).includes('12/31') && !(await ui.text()).includes('1/9'), '下の「前の月」で12月に戻らない');
+  await f.locator('#next').click(); await ui.waitIdle();
+  const nx = f.locator('#next');
   if (await nx.count()) {
     const dis = await nx.isDisabled().catch(() => true);
     if (!dis) { await nx.click(); await ui.waitIdle(); assert.ok(!(await ui.text()).match(/\b2\/\d+\b/), '2か月より先へ進めた'); }

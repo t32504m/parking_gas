@@ -94,11 +94,15 @@ test('[S-072] 住民向けの全ての公開関数の応答に、台数の数・
   }
 });
 
-test('[S-073] 管理者向けの空き状況は、台数の数を返す', async (t) => {
+test('[S-073] 管理者向けの空き状況は、台数の数を返す（全ての区画の3台から数える。D-040）', async (t) => {
   await withSpec(t, async (env) => {
     await env.register({ date: D, slotId: 'S1' });
     const s = (await env.adminAvail(D, D)).days[0].slots.find((x) => x.slotId === 'S1');
-    assert.equal(s.remaining, 1);
+    assert.equal(s.remaining, 2);
+    await env.register({ date: D, slotId: 'S1' });
+    assert.equal((await env.adminAvail(D, D)).days[0].slots.find((x) => x.slotId === 'S1').remaining, 1, '住民には×の2台で、管理者の残りが1でない');
+    await env.register({ date: D, slotId: 'S1' });
+    assert.equal((await env.adminAvail(D, D)).days[0].slots.find((x) => x.slotId === 'S1').remaining, 0);
   });
 });
 
@@ -169,17 +173,18 @@ test('[S-126] 変更先が取れないときは、途中で止まっても何も
       const x = await env.register({ date: D, slotId: 'S1', person: p });
       await env.register({ date: '2026-11-25', slotId: 'S3' });
       await env.register({ date: '2026-11-25', slotId: 'S3' });
+      await env.register({ date: '2026-11-25', slotId: 'S3' }); // 管理者の上限（3台）で満車
       env.host.setFaults({ terminateAfterWrite: { fn: 'api_admin_change', at } });
       await env.raw('api_admin_change', [env.auth(ADMIN), { reservationId: x.reservationId, date: '2026-11-25', slotId: 'S3', name: p.name, building: p.building, room: p.room, phone: p.phone, email: '' }]);
       env.host.clearFaults();
       await afterCleanup(env);
       assert.equal(settled(env, x.reservationId, { date: D, slotId: 'S1' }, { date: '2026-11-25', slotId: 'S3' }, `止めた場所 ${at}`), 'before');
-      assert.equal(env.activeAllocs('2026-11-25', 'S3').length, 2);
+      assert.equal(env.activeAllocs('2026-11-25', 'S3').length, 3);
     });
   }
 });
 
-test('[S-127] 変更が途中で止まった後も、変更先・変更元の枠は上限の2台を超えて入らない', async (t) => {
+test('[S-127] 変更が途中で止まった後も、変更先・変更元の枠は上限（管理者の3台）を超えて入らない', async (t) => {
   for (let at = 1; at <= 6; at++) {
     await withSpec(t, async (env) => {
       const p = PEOPLE[5];
@@ -189,9 +194,9 @@ test('[S-127] 変更が途中で止まった後も、変更先・変更元の枠
       await env.raw('api_admin_change', [env.auth(ADMIN), { reservationId: x.reservationId, date: '2026-11-25', slotId: 'S3', name: p.name, building: p.building, room: p.room, phone: p.phone, email: '' }]);
       env.host.clearFaults();
       // 片付けの前に、両方の枠へ登録を重ねる（上限は withSpec の後の確かめと、ここで見る）
-      for (let i = 0; i < 3; i++) { await env.register({ date: D, slotId: 'S1' }); await env.register({ date: '2026-11-25', slotId: 'S3' }); }
-      assert.ok(env.activeAllocs(D, 'S1').length <= 2);
-      assert.ok(env.activeAllocs('2026-11-25', 'S3').length <= 2);
+      for (let i = 0; i < 4; i++) { await env.register({ date: D, slotId: 'S1' }); await env.register({ date: '2026-11-25', slotId: 'S3' }); }
+      assert.ok(env.activeAllocs(D, 'S1').length <= 3);
+      assert.ok(env.activeAllocs('2026-11-25', 'S3').length <= 3);
       await afterCleanup(env);
       const r = env.resById(x.reservationId);
       assert.equal(r['状態'], '確定', `止めた場所 ${at}: 予約が確定でなくなった`);

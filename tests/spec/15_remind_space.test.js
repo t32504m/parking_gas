@@ -148,12 +148,13 @@ test('[S-192] 1日に送る数は、その日の確定の予約（メールあ�
     const c = await env.register({ date: D, slotId: 'S4', email: 'm5@example.net' });
     await env.admin('api_admin_cancel', { reservationId: c.reservationId, reason: '本人から電話', requestId: rid() });
     await env.register({ date: '2026-11-21', slotId: 'S1', email: 'next@example.net' });
-    // 不成立（満車）
-    await env.register({ date: D, slotId: 'S1', email: 'full@example.net' });
+    // 管理者の3台目（確定）と、4台目（満車で不成立）。D-040
+    await env.register({ date: D, slotId: 'S1', email: 'm6@example.net' });
+    assert.notEqual((await env.register({ date: D, slotId: 'S1', email: 'full@example.net' })).status, 'CONFIRMED');
     for (const iso of ['2026-11-19T18:00:00+09:00', '2026-11-19T18:05:00+09:00', '2026-11-19T21:00:00+09:00']) { at(env, iso); await jobs(env); }
     const sent = env.host.outbox.length;
     assert.ok(sent <= env.reservations().filter((r) => r['状態'] === '確定').length, `確定の予約の数より多く送った: ${sent}`);
-    assert.deepEqual(env.host.outbox.map((m) => m.to).sort(), ['m1@example.net', 'm2@example.net', 'm3@example.net']);
+    assert.deepEqual(env.host.outbox.map((m) => m.to).sort(), ['m1@example.net', 'm2@example.net', 'm3@example.net', 'm6@example.net']);
   });
 });
 

@@ -46,15 +46,20 @@ test('[S-111] 変更後の料金・時間帯・開始／終了日時が合い、
   });
 });
 
-test('[S-112] 変更先が満車なら、何も変えずに理由を返す', async (t) => {
+test('[S-112] 変更先が満車（管理者の上限の3台）なら、何も変えずに理由を返す。住民の上限（2台）なら移れる', async (t) => {
   await withSpec(t, async (env) => {
     const x = await make(env);
-    await env.register({ date: '2026-11-21' }); await env.register({ date: '2026-11-21' });
+    await env.register({ date: '2026-11-21' }); await env.register({ date: '2026-11-21' }); await env.register({ date: '2026-11-21' });
     const before = JSON.stringify(env.grid('予約')) + JSON.stringify(env.grid('割当て'));
     const r = await change(env, x, { date: '2026-11-21', name: '別の 名前' });
     assert.notEqual(r.status, 'CHANGED');
     assert.ok(r.reason || r.reasonText, '理由が無い');
     assert.equal(JSON.stringify(env.grid('予約')) + JSON.stringify(env.grid('割当て')), before, '断ったのに台帳が変わった');
+    // 2台入ったコマ（住民には×）へは、管理者の変更で移れる（D-040）
+    await env.register({ date: '2026-11-22' }); await env.register({ date: '2026-11-22' });
+    const ok = await change(env, x, { date: '2026-11-22' });
+    assert.equal(ok.status, 'CHANGED', JSON.stringify(ok));
+    assert.equal(env.activeAllocs('2026-11-22', 'S1').length, 3);
   });
 });
 

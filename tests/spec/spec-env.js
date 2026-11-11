@@ -12,6 +12,9 @@ const ROOT = path.join(__dirname, '..', '..');
 const CONTRACT = require('../../contract/contract.json');
 const NOW = '2026-11-09T09:00:00+09:00'; // 月曜
 const TODAY = '2026-11-09';
+const SPACES = ['91', '92', '93'];
+const RES_CAP = 2; // 住民の上限（本番の既定の capacityPerSlot）
+const ADMIN_CAP = SPACES.length; // 管理者の上限（D-040）
 
 const ADMIN = { email: 'kanri1@example.org', name: '管理 一郎', secret: 'spec-pass-1111' };
 const ADMIN2 = { email: 'kanri2@example.org', name: '管理 二葉', secret: 'spec-pass-2222' };
@@ -42,12 +45,14 @@ async function createSpecEnv(opts = {}) {
   host.setScriptProperties({ SPREADSHEET_ID: ssId, CONTACT_NOTE: '自治会の駐車場係（電話 03-0000-0000）' });
   const s = await host.run('setup_init', [opts.rules || {}, [ADMIN, ADMIN2]], { kind: 'editor' });
   if (!s.ok || !s.value || s.value.status !== 'OK') throw new Error(`setup_init に失敗: ${JSON.stringify(s.error || s.value)}`);
+  // D-040：住民（空き状況・申込み）は capacityPerSlot（既定 2）まで。管理者（代行登録・変更・空き状況）は全ての区画（3台）まで
   const capacity = (opts.rules && opts.rules.capacityPerSlot) || 2;
+  const adminCapacity = SPACES.length;
 
   const val = (r) => (r.ok ? (r.value === undefined ? { status: 'UNDEFINED' } : r.value) : { status: r.denied ? 'DENIED' : 'ERROR', error: r.error });
   const auth = (who) => ({ email: who && who.email, secret: who && who.secret });
   const env = {
-    host, ssId, capacity, TODAY,
+    host, ssId, capacity, adminCapacity, TODAY,
     val, auth,
     /** google.script.run と同じ経路で呼ぶ（引数はそのまま） */
     async raw(fn, args, user = null) { return host.run(fn, args, { kind: 'client', user }); },
@@ -90,7 +95,7 @@ async function createSpecEnv(opts = {}) {
     },
     resById(id) { return env.reservations().find((r) => String(r['予約番号']) === String(id)); },
     async runTrigger(fn) { return host.run(fn, [{ triggerUid: 'spec', authMode: 'FULL' }], { kind: 'trigger' }); },
-    /** 追加の不変条件：1コマの有効な割当てが上限以下 */
+    /** 追加の不変条件：1コマの有効な割当てが、全ての区画の数（管理者の上限、D-040）以下。住民の上限（2台）は各試験で確かめる */
     extraCheck() {
       const v = [];
       const cnt = new Map();
@@ -99,7 +104,7 @@ async function createSpecEnv(opts = {}) {
         const k = `${ymdOf(a['利用日'])}|${a['コマID']}`;
         cnt.set(k, (cnt.get(k) || 0) + 1);
       }
-      for (const [k, n] of cnt) if (n > capacity) v.push(`[OVER_CAPACITY] ${k} に有効な割当てが ${n} 件（上限 ${capacity}）`);
+      for (const [k, n] of cnt) if (n > adminCapacity) v.push(`[OVER_CAPACITY] ${k} に有効な割当てが ${n} 件（上限 ${adminCapacity}）`);
       return v;
     },
   };
@@ -144,4 +149,4 @@ function slotOpen(s) {
 function pii(list) { return list.flatMap((p) => [p.name, p.name.split(' ')[0], p.phone, p.phone.replace(/-/g, ''), `${p.building}${p.room}`]); }
 function leaks(obj, needles) { const s = JSON.stringify(obj ?? null); return needles.filter((n) => n && s.includes(n)); }
 
-module.exports = { createSpecEnv, withSpec, addDays, rid, ymdOf, hasDate, pii, leaks, slotOpen, ADMIN, ADMIN2, PEOPLE, NOW, TODAY, CONTRACT };
+module.exports = { RES_CAP, ADMIN_CAP, createSpecEnv, withSpec, addDays, rid, ymdOf, hasDate, pii, leaks, slotOpen, ADMIN, ADMIN2, PEOPLE, NOW, TODAY, CONTRACT };
