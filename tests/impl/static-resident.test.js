@@ -85,3 +85,44 @@ test('外の画面：GAS につながらないときは、読み直しのボタ�
     assert.match(await page.textContent('main'), /理事会事務局/);
   } finally { await browser.close(); await s.close(); }
 });
+
+test('外の画面：最初の月の空き状況は設定と一緒に受け取り、開くときの GAS の呼び出しは1回。届くまでは「読み込んでいます」だけを出す', async () => {
+  const s = await startStatic({});
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
+    // 設定の応答を遅らせ、届く前の画面を見る
+    let release;
+    const gate = new Promise((ok) => { release = ok; });
+    await page.route('**/gas', async (route) => { await gate; await route.continue(); });
+    await page.goto(s.url);
+    await page.waitForSelector('#cfg-busy', { state: 'visible' });
+    assert.equal(await page.isVisible('#prev'), false, '設定が届く前に「前の月」が見える');
+    assert.equal(await page.isVisible('#next'), false, '設定が届く前に「次の月」が見える');
+    release();
+    await page.waitForSelector('.sheet tbody tr', { timeout: 15000 });
+    assert.equal(await page.isVisible('#cfg-busy'), false, '読み込んだ後も「読み込んでいます」が残る');
+    assert.equal(s.calls.length, 1, `開くときに GAS を ${s.calls.length} 回呼んだ`);
+    assert.deepEqual(s.calls[0].body, { fn: 'config', args: [{ firstMonth: true }] });
+    // 次の月は、ふつうに呼ぶ
+    await page.click('#next');
+    await page.waitForFunction(() => document.querySelectorAll('.sheet tbody tr').length > 0);
+    await page.waitForTimeout(300);
+    assert.equal(s.calls.length, 2);
+    assert.equal(s.calls[1].body.fn, 'api_getAvailability');
+  } finally { await browser.close(); await s.close(); }
+});
+
+test('doPost の config：firstMonth を頼んだときだけ、最初の月の空き状況（住民向けと同じ中身）を付ける', async () => {
+  const s = await startStatic({});
+  try {
+    const plain = await post(s, { fn: 'config', args: [] });
+    assert.equal(plain.first, undefined);
+    const c = await post(s, { fn: 'config', args: [{ firstMonth: true }] });
+    assert.equal(c.first.from, c.viewFrom);
+    assert.match(c.first.to, new RegExp('^' + c.viewFrom.slice(0, 8) + '(28|29|30|31)$'));
+    const direct = await post(s, { fn: 'api_getAvailability', args: [{ from: c.first.from, to: c.first.to }] });
+    assert.deepEqual(c.first.result, direct);
+    assert.ok(!JSON.stringify(c).includes('"remaining"'));
+  } finally { await s.close(); }
+});

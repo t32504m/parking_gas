@@ -62,7 +62,17 @@ function webApi_(body) {
     : [body && body.arg !== undefined ? body.arg : null];
   var a = args[0] === undefined ? null : args[0], b = args[1] === undefined ? null : args[1];
   switch (fn) {
-    case 'config': return guard_(function () { var c = residentConfig_(); c.status = 'OK'; return c; });
+    case 'config': return guard_(function () {
+      var c = residentConfig_(); c.status = 'OK';
+      // 住民の外の画面は、最初の月の空き状況も一緒に受け取る（GAS を呼ぶ回数を1回減らす。1回に1〜3秒かかるため）。
+      // 範囲は、住民の画面が最初に読む範囲（見せる最初の日から、その月の末まで）と同じ
+      if (a && a.firstMonth === true) {
+        var y = Number(c.viewFrom.slice(0, 4)), m = Number(c.viewFrom.slice(5, 7));
+        var to = c.viewFrom.slice(0, 8) + ('0' + new Date(Date.UTC(y, m, 0)).getUTCDate()).slice(-2);
+        c.first = { from: c.viewFrom, to: to, result: api_getAvailability({ from: c.viewFrom, to: to }) };
+      }
+      return c;
+    });
     case 'api_getAvailability': return api_getAvailability(a);
     case 'api_submitReservation': return api_submitReservation(a);
     case 'api_getRequestStatus': return api_getRequestStatus(a);

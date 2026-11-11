@@ -23,7 +23,7 @@ const PAGES = {
   resident: {
     file: 'Index.html', out: 'index.html', title: '駐車場の空き状況', robots: false,
     values: ['contact', 'hours', 'terms', 'today', 'viewFrom'], layout: true,
-    errorTitle: '空き状況を読み込めませんでした',
+    errorTitle: '空き状況を読み込めませんでした', firstMonth: true,
   },
   admin: {
     file: 'Admin.html', out: path.join('admin', 'index.html'), title: '駐車場予約 管理者用', robots: true,
@@ -59,6 +59,8 @@ function loader(gasUrl, fallback, page) {
     var GAS_URL = ${JSON.stringify(gasUrl)};
     var FALLBACK = ${JSON.stringify(fallback || '')};
     var ERROR_TITLE = ${JSON.stringify(page.errorTitle)};
+    var FIRST_MONTH = ${page.firstMonth ? 'true' : 'false'};
+    var first = null; // 設定と一緒に受け取った、最初の月の空き状況（1回だけ使う）
     function post(fn, args) {
       return fetch(GAS_URL, {
         method: 'POST', credentials: 'omit', redirect: 'follow', cache: 'no-store',
@@ -74,7 +76,15 @@ function loader(gasUrl, fallback, page) {
         old.parentNode.replaceChild(s, old);
         // Common を動かした直後に、サーバーの呼び出しを fetch に替える（画面の最初の読込みより前に）
         if (window.App && !window.App.__static) {
-          window.App.call = function (fn) { return post(fn, Array.prototype.slice.call(arguments, 1)); };
+          window.App.call = function (fn) {
+            var args = Array.prototype.slice.call(arguments, 1);
+            var q = args[0];
+            if (first && fn === 'api_getAvailability' && q && q.from === first.from && q.to === first.to) {
+              var r = first.result; first = null;
+              return Promise.resolve(r);
+            }
+            return post(fn, args);
+          };
           window.App.__static = true;
         }
       });
@@ -88,11 +98,19 @@ function loader(gasUrl, fallback, page) {
         + (FALLBACK ? '<p class="sub"></p>' : '') + '</section>';
       m.querySelector('h2').textContent = ERROR_TITLE;
       if (FALLBACK) m.querySelector('.sub').textContent = FALLBACK;
+      ready();
+    }
+    function ready() {
+      document.documentElement.classList.remove('cfg-wait');
+      var b = document.getElementById('cfg-busy');
+      if (b) b.parentNode.removeChild(b);
     }
     function start(tries) {
-      post('config').then(function (c) {
+      post('config', FIRST_MONTH ? [{ firstMonth: true }] : []).then(function (c) {
         if (!c || c.status !== 'OK') throw new Error('config');
         window.__CFG = c;
+        first = c.first && c.first.result && c.first.result.status === 'OK' ? c.first : null;
+        ready();
         runDeferred();
       }).catch(function () {
         if (tries > 0) setTimeout(function () { start(tries - 1); }, 1500); else showError();
@@ -113,6 +131,10 @@ function buildPage(kind, { gasUrl, fallback }) {
   let html = read(page.file);
   html = replaceOnce(html, "<?!= include_('Styles') ?>", read('Styles.html'), 'Styles の読込み');
   html = replaceOnce(html, "<?!= include_('Common') ?>", read('Common.html'), 'Common の読込み');
+  // 設定が届くまでは、画面の部品（ボタンなど）を隠し、読込みの表示だけを出す
+  html = replaceOnce(html, '<html lang="ja">', '<html lang="ja" class="cfg-wait">', 'html の始まり');
+  html = replaceOnce(html, '</head>', '  <style>html.cfg-wait main.page > :not(#cfg-busy) { display: none !important; }</style>\n</head>', 'head の終わり');
+  html = replaceOnce(html, '<main class="page">', '<main class="page">\n    <div id="cfg-busy" class="busy" role="status" style="margin:24px 16px"><span class="spin" aria-hidden="true"></span>読み込んでいます</div>', 'main の始まり');
   // GAS が付けていたもの（題名・画面の幅）を、自分で付ける。管理者の画面は検索に載せない
   html = replaceOnce(html, '<meta charset="utf-8">',
     '<meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n'
