@@ -72,18 +72,65 @@ test('[S-082] 式を入れても、シートでは文字のまま（式として
   });
 });
 
-test('[S-083] 電話番号の先頭0が消えない', async (t) => {
+// D-039（依頼者の決定、2026-11-12）：電話番号は保存のときに書き方をそろえる。前は「入れた形のまま保存」を確かめていた。
+const PHONE_CASES = [
+  ['09012345678', '090-1234-5678'],
+  ['０９０－１２３４－５６７８', '090-1234-5678'],
+  ['090 1234 5678', '090-1234-5678'],
+  ['(090)1234-5678', '090-1234-5678'],
+  ['（０９０）１２３４ー５６７８', '090-1234-5678'],
+  ['070‐1234‐5678', '070-1234-5678'],
+  ['080−1234−5678', '080-1234-5678'],
+  ['0312345678', '03-1234-5678'],
+  ['0612345678', '06-1234-5678'],
+  ['03-1234-5678', '03-1234-5678'],
+  ['045-123-4567', '045-123-4567'],
+  ['0451234567', '0451234567'],
+  ['0120 123 456', '0120-123-456'],
+  ['0120123456', '0120-123-456'],
+  ['08001234567', '0800-123-4567'],
+  ['+81 90 1234 5678', '+819012345678'],
+  ['+81-90-1234-5678', '+81-90-1234-5678'],
+];
+const digitsOf = (s) => String(s).replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/\D/g, '');
+
+test('[S-083] 電話番号は保存のときに書き方をそろえる。先頭の0・けたは失われず、文字列のまま', async (t) => {
   await withSpec(t, async (env) => {
-    const phones = ['09012345678', '0312345678', '03-1234-5678', '+81-90-1234-5678', '0120 123 456'];
-    for (let i = 0; i < phones.length; i++) {
-      const r = await env.register({ date: `2026-11-${11 + i}`, phone: phones[i] });
-      assert.equal(r.status, 'CONFIRMED', JSON.stringify(r));
+    const ids = [];
+    for (let i = 0; i < PHONE_CASES.length; i++) {
+      const [input, want] = PHONE_CASES[i];
+      const r = await env.register({ date: `2026-11-${10 + i}`, phone: input });
+      assert.equal(r.status, 'CONFIRMED', `${input}: ${JSON.stringify(r)}`);
       const x = env.resById(r.reservationId);
-      assert.equal(typeof x['電話番号'], 'string');
-      assert.equal(x['電話番号'], phones[i]);
+      assert.equal(typeof x['電話番号'], 'string', `${input} が文字列でない`);
+      assert.equal(x['電話番号'], want, `${input} の保存の形`);
+      assert.equal(digitsOf(x['電話番号']), digitsOf(input), `${input} の数字（先頭の0・けた）が変わった`);
+      ids.push([r.reservationId, want]);
     }
-    const list = await env.admin('api_admin_list', { from: '2026-11-11', to: '2026-11-15' });
-    assert.deepEqual(list.reservations.map((x) => x.phone).sort(), phones.slice().sort());
+    assert.equal(env.host.store.conversionLog.length, 0, `文字が自動で変換された: ${JSON.stringify(env.host.store.conversionLog.slice(0, 5))}`);
+    // 管理者の一覧も、そろえた形を返す
+    const list = await env.admin('api_admin_list', { from: '2026-11-10', to: '2026-11-30' });
+    for (const [id, want] of ids) assert.equal(list.reservations.find((y) => y.reservationId === id).phone, want);
+  });
+});
+
+test('[S-087] 書き方をそろえた後も、予約の確認（電話の下4けた）は今までどおり通る', async (t) => {
+  await withSpec(t, { rules: { residentLookup: true } }, async (env) => {
+    const inputs = ['０９０－１２３４－５６７８', '09012345678', '0120 123 456', '+81 90 1234 5678', '045-123-4567', '0451234567'];
+    for (let i = 0; i < inputs.length; i++) {
+      const input = inputs[i];
+      const date = `2026-11-${20 + i}`;
+      const r = await env.register({ date, slotId: 'S4', phone: input });
+      assert.equal(r.status, 'CONFIRMED', JSON.stringify(r));
+      const tail = digitsOf(input).slice(-4);
+      // 住民は、入れたときの書き方に関係なく、数字の下4けたで確かめる
+      for (const t4 of [tail, tail.replace(/[0-9]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0xFEE0))]) {
+        const ok = await env.pub('api_lookupReservation', { reservationId: r.reservationId, phoneTail: t4 });
+        if (t4 === tail || ok.status === 'OK') assert.ok(JSON.stringify(ok).includes(date), `${input}：下4けた ${t4} で確認できない: ${JSON.stringify(ok)}`);
+      }
+      const ng = await env.pub('api_lookupReservation', { reservationId: r.reservationId, phoneTail: tail === '0000' ? '1111' : '0000' });
+      assert.ok(!JSON.stringify(ng).includes(date), `${input}：違う下4けたで中身が返った`);
+    }
   });
 });
 

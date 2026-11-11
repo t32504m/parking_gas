@@ -117,7 +117,7 @@ test('[S-117] 氏名・電話番号などの変更が台帳に入り、操作履
     assert.equal(r.status, 'CHANGED');
     const a = env.resById(x.id);
     assert.equal(a['氏名'], '新しい 名前');
-    assert.equal(a['電話番号'], '0311112222');
+    assert.equal(a['電話番号'], '03-1111-2222', '変更でも電話番号の書き方をそろえる（D-039）');
     assert.equal(a['部屋番号'], '0505');
     const au = env.audit().filter((y) => String(y['予約番号']) === String(x.id) && String(y['操作']).includes('変更'));
     assert.equal(au.length, 1);

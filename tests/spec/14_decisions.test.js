@@ -33,7 +33,9 @@ const PUBLIC = Object.entries(CONTRACT.surface.functions).filter(([, k]) => k ==
 test('[S-072] 住民向けの全ての公開関数の応答に、台数の数・他人の名前・部屋番号・電話番号が出ない', async (t) => {
   for (const rules of [{}, { residentBooking: true, residentLeadDays: 0, residentLookup: true }]) {
     await withSpec(t, { rules }, async (env) => {
-      const ps = PEOPLE.slice(0, 4);
+      // 部屋番号は、予約番号（6けたの数字）・受付要求ID・時刻に偶然には出ない形にする。
+      // 前は '201' などの3けたで、予約番号に偶然 '201' が入ると落ちた（2026-11-12、60回中3回）
+      const ps = PEOPLE.slice(0, 4).map((p, i) => ({ ...p, room: `R${9 - i}x${7 - i}` }));
       // 1台入ったコマ（前の△）と、2台で満車のコマ
       const a = await env.register({ date: D, slotId: 'S1', person: ps[0], email: 'p0@example.net' });
       await env.register({ date: D, slotId: 'S2', person: ps[1] });
