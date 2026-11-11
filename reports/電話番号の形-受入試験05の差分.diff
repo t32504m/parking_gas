@@ -1,0 +1,13 @@
+diff --git a/tests/acceptance/05_rules.test.js b/tests/acceptance/05_rules.test.js
+index cad9d0c..1f713cf 100644
+--- a/tests/acceptance/05_rules.test.js
++++ b/tests/acceptance/05_rules.test.js
+@@ -60,6 +60,7 @@ test('[6.4][7.2] 電話番号の先頭0や部屋番号が、シートの自動
+   assert.equal(r.status, 'CONFIRMED');
+   const list = await env.adapter.adminList(env.host, { reservationId: r.reservationId }, ACTORS.admin);
+   const s = JSON.stringify(list.raw);
+-  assert.ok(s.includes('09012345678'), '電話番号の先頭0が失われた（数値に変換された）');
++  // 電話番号は保存のときに区切りをそろえる（D-039、例 090-1234-5678）。区切りを除いた数字の並びで、先頭0が残っているかを見る
++  assert.ok(s.replace(/-/g, '').includes('09012345678'), '電話番号の先頭0が失われた（数値に変換された）');
+   assert.ok(s.includes('0102'), '部屋番号 0102 が 102 に変わった');
+ }));

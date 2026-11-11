@@ -340,7 +340,7 @@
     function field(id, label, key, type, ac, req, ph, noOpt) {
       return '<div class="f"><label for="' + id + '">' + label + (req || noOpt ? '' : '<span class="opt">なくても可</span>') + '</label>'
         + '<input class="in" id="' + id + '" type="' + type + '" autocomplete="' + ac + '"' + (type === 'tel' ? ' inputmode="tel"' : '')
-        + (ph ? ' placeholder="' + esc(ph) + '"' : '') + (req ? ' aria-required="true"' : '') + ' value="' + esc(S.form[key] || '') + '"></div>';
+        + (ph || type === 'tel' ? ' placeholder="' + esc(ph || App.TEL_EXAMPLE) + '"' : '') + (req ? ' aria-required="true"' : '') + ' value="' + esc(S.form[key] || '') + '"></div>';
     }
     function read() { ['name', 'building', 'room', 'phone', 'email'].forEach(function (k) { var el = $('f-' + k); if (el) S.form[k] = el.value.trim(); }); }
     function check() { return App.personErrors(S.form, 'f-'); }

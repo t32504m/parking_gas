@@ -86,8 +86,8 @@ function normalizeRequest_(req, channel) {
   r.room = cleanText_(req.room, 20);
   if (!r.room) return { error: '部屋番号' };
   r.phone = cleanText_(req.phone, 20);
-  if (r.phone === null || (r.phone && !/^[0-9\uFF10-\uFF19+()\-\u2010\uFF0D\u30FC\s]{6,20}$/.test(r.phone))) return { error: '電話番号' };
-  r.phone = (r.phone || '').replace(/[\uFF10-\uFF19]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/[\u2010\uFF0D\u30FC]/g, '-');
+  if (r.phone === null || (r.phone && !/^[0-9\uFF10-\uFF19+\uFF0B()\uFF08\uFF09\-\u2010-\u2015\u2212\uFF0D\u30FC\uFF70\s]{6,20}$/.test(r.phone))) return { error: '電話番号' };
+  r.phone = formatPhone_(r.phone);
   r.email = cleanText_(req.email, 254);
   if (r.email === null || (r.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email))) return { error: 'メールアドレス' };
   if (channel === CHANNELS.ONLINE && rules_().emailRequiredOnline && !r.email) return { error: 'メールアドレス' };
@@ -428,4 +428,26 @@ function lookup_(q) {
     })[0] || null;
   }, LockService.getUserLock());
   return r ? { status: 'OK', summary: summaryOf_(r) } : { status: 'NOT_FOUND' };
+}
+
+/**
+ * 電話番号の書き方をそろえる（D-039）。どう入れても、台帳では同じ形になるように。
+ * 全角は半角に、いろいろな線は「-」に、空白とかっこは除く。「+」で始まるもの（海外）は、空白を除くだけ。
+ * 携帯など（0X0 で始まる11けた）は 3-4-4、03・06 の10けたは 2-4-4、0120 は 4-3-3、0800 は 4-3-4。
+ * ほかの固定電話は、市外局番の長さが決まらないので、入れた人の区切りを使う（区切りが無ければ数字だけ）。
+ */
+function formatPhone_(s) {
+  var t = String(s || '')
+    .replace(/[０-９＋（）]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+    .replace(/[‐-―−－ーｰ]/g, '-')
+    .replace(/\s+/g, '');
+  if (!t) return '';
+  if (t.charAt(0) === '+') return t;
+  t = t.replace(/[()]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  var d = t.replace(/-/g, '');
+  if (/^0800\d{7}$/.test(d)) return d.slice(0, 4) + '-' + d.slice(4, 7) + '-' + d.slice(7);
+  if (/^0[2-9]0\d{8}$/.test(d)) return d.slice(0, 3) + '-' + d.slice(3, 7) + '-' + d.slice(7);
+  if (/^0[36]\d{8}$/.test(d)) return d.slice(0, 2) + '-' + d.slice(2, 6) + '-' + d.slice(6);
+  if (/^0120\d{6}$/.test(d)) return d.slice(0, 4) + '-' + d.slice(4, 7) + '-' + d.slice(7);
+  return t;
 }

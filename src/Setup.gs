@@ -36,6 +36,8 @@ function setupCore_(rules, admins, installTriggers) {
   (admins || []).forEach(function (a) {
     var email = normEmail_(a.email);
     if (!email || normSecret_(String(a.secret || '')).length < 8) throw new Error('管理者の設定が不正です（メールと8文字以上のパスコードが必要）: ' + email);
+    // メールの形を確かめる（D-039。前に、先頭に「(」が付いたまま登録され、ログインできなくなった）
+    if (!/^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/.test(email)) throw new Error('管理者のメールアドレスの形が正しくありません（かっこや空白、全角の文字が入っていないか見てください）: ' + email);
     var salt = Utilities.getUuid();
     store[email] = { name: String(a.name || email), salt: salt, hash: hashSecret_(salt, normSecret_(String(a.secret))) };
   });

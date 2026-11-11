@@ -82,6 +82,8 @@ var App = window.App || {};
   };
   /** 作業の枠の見出しと「閉じる」 */
   App.head = function (title) { return '<div class="phead"><h2 id="h-panel">' + App.esc(title) + '</h2><button type="button" class="btn plain" id="close">閉じる</button></div>'; };
+  /** 電話番号の欄に薄く出す例（D-039。どう入れても、保存のときにこの形にそろえる） */
+  App.TEL_EXAMPLE = '例：090-1234-5678';
   App.busy = function (text) { return '<div class="busy" role="status"><span class="spin" aria-hidden="true"></span>' + App.esc(text) + '</div>'; };
   App.note = function (kind, title, text) {
     return '<div class="note ' + kind + '" role="' + (kind === 'ok' ? 'status' : 'alert') + '"><b>' + App.esc(title) + '</b>' + (text ? App.esc(text) : '') + '</div>';
