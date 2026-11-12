@@ -22,6 +22,7 @@ var REASON_TEXT = {
   PAST: '過ぎた日付です',
   ARCHIVED: '2か月より前の日付は、保管のシートに移したため、登録・取消しができません',
   CLOSED: '画面からの申し込みは受け付けていません。予約は電話で受け付けています',
+  TOO_MANY: '同じ部屋は、連続した4コマまで予約できます。必要なときは間に空いているコマを置くか、となり合うコマを取り消してから申し込んでください',
   INVALID: '入力内容に不足や誤りがあります',
   BUSY: '混み合っていて処理できませんでした。少し待ってからもう一度お試しください',
   SYSTEM: '処理できませんでした。時間をおいて「結果を確かめる」を押してください',
@@ -238,6 +239,15 @@ function book_(req, channel, operator) {
   var r = n.value;
   // 住民の受付を閉じているときは、台帳に何も書かずに断る（公開関数は誰でも直接呼べるため、画面を消すだけでなくここで止める）
   if (channel === CHANNELS.ONLINE && !ruleOn_('residentBooking')) return { status: 'REJECTED', reason: 'CLOSED', reasonText: REASON_TEXT.CLOSED };
+  // 台帳を読まずに断れるものは、ロックを取る前にここで断る（D-042・G2）。
+  // 過去日・締切後・期間外・連続上限の超過は、台帳にも行を書かない（書き込みと容量判定はスクリプトロックを取るため、
+  // これが「無限の燃料」になると、ゴミ申込が正当な予約や管理者の入力を待たせる。満車(FULL)の後から確認できる性質は
+  // 受入試験[6.5][U-07]が守るので、容量判定だけ今までどおり行を残す）
+  if (channel === CHANNELS.ONLINE) {
+    var early = ruleViolation_(r, new Date(), channel);
+    if (!early && chainExceeds_(readAll_(SHEETS.RES), r, r.requestId)) return rejectedOnline_(r, 'TOO_MANY');
+    if (early) return rejectedOnline_(r, early);
+  }
   return withLock_(function () {
     var now = new Date();
     var reservations = readAll_(SHEETS.RES);
@@ -260,6 +270,8 @@ function book_(req, channel, operator) {
       var prefer = r.preferSpace || neighborSpaces_(reservations, allocs, r.date, r.slotId, r.building, r.room, id);
       spaces = chooseSpaces_(activeSpaces_(allocs, r.date, r.slotId), r.quantity, prefer, blockedSpaces_(activeBlocks_(r.date, r.date), r.date, r.slotId), capacityFor_(channel));
       if (!spaces) reason = 'FULL';
+      // ロックの中でも連続コマ数を確かめ直す（ロック前の照合は古い読み取りの可能性があるため、同一部屋同時の5つ目を逃さない）
+      if (!reason && channel === CHANNELS.ONLINE && chainExceeds_(reservations, r, r.requestId)) reason = 'TOO_MANY';
     }
     var row = slotFields_(r.date, r.slotId, r.quantity);
     personFields_(row, r);
@@ -319,6 +331,42 @@ function personFields_(row, v) {
   Object.keys(PERSON_COLS).forEach(function (k) { row[PERSON_COLS[k]] = v[k]; });
   row['連絡方法'] = v.email ? 'メール' : (v.phone ? '電話' : 'なし');
   return row;
+}
+
+/** 文字で返すだけの不成立（台帳に行を書かない・ロックを取らない。D-042・G2） */
+function rejectedOnline_(r, reason) {
+  var row = slotFields_(r.date, r.slotId, r.quantity);
+  personFields_(row, r);
+  var stamp = iso_(new Date());
+  Object.assign(row, { '予約番号': '', '状態': ST.REJECTED, '不成立理由': reason, '受付経路': CHANNELS.ONLINE, '台数': r.quantity, '受付日時': stamp, '更新日時': stamp });
+  return resultOf_(row);
+}
+
+/** 同じ部屋の確定した予約が、(date,slot) を含む連なり（夜をまたぐ B,C,D,A を1つなぎと数える）にいくつあるか。申込み自身も数える（D-042・G1） */
+function chainLen_(reservations, date, slotId, key, selfReqId) {
+  var at = {};
+  reservations.forEach(function (x) {
+    if (x['状態'] === ST.CONFIRMED && String(x['受付要求ID']) !== String(selfReqId) && roomKey_(x['棟'], x['部屋番号']) === key) at[String(x['利用日']) + '|' + String(x['コマID'])] = true;
+  });
+  var seen = {}, n = 0;
+  (function walk(d, s) {
+    var k = d + '|' + s;
+    if (seen[k]) return;
+    seen[k] = true; n++;
+    var i = SLOT_IDS.indexOf(s), last = SLOT_IDS.length - 1;
+    var prev = i > 0 ? [d, SLOT_IDS[i - 1]] : [addDaysYmd_(d, -1), SLOT_IDS[last]];
+    var next = i < last ? [d, SLOT_IDS[i + 1]] : [addDaysYmd_(d, 1), SLOT_IDS[0]];
+    if (at[prev[0] + '|' + prev[1]]) walk(prev[0], prev[1]);
+    if (at[next[0] + '|' + next[1]]) walk(next[0], next[1]);
+  })(date, slotId);
+  return n;
+}
+
+/** 同じ部屋の連続コマ数が規則（residentChainMax）を超えていれば真（D-042・G1）。部屋が特定できない申込みは数えない */
+function chainExceeds_(reservations, r, selfReqId) {
+  var key = roomKey_(r.building, r.room);
+  if (!key) return false;
+  return chainLen_(reservations, r.date, r.slotId, key, selfReqId) > Number(rules_().residentChainMax);
 }
 
 /** その予約の有効な割当てを、まとめて1回で解放にする。解放した行を返す */
