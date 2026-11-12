@@ -89,8 +89,10 @@ function cellValue_(v) {
 
 /** 1行を末尾に足す。読んである行にも、読んだときと同じ形（空は ''）で足す */
 function appendRow_(name, obj) {
-  sheet_(name).appendRow(rowValues_(name, obj));
-  var rows = ledgerCache_.rows[name], x = { _row: rows ? rows.length + 2 : 0 };
+  var sh = sheet_(name);
+  sh.appendRow(rowValues_(name, obj));
+  // 行が置いてないとき（未読のまま append のとき）も、行番号は実際の末尾（D-041。これが0だと、後で updateRow_ が getRange(0,…) で例外になる）
+  var rows = ledgerCache_.rows[name], x = { _row: rows ? rows.length + 2 : sh.getLastRow() };
   COLS[name].forEach(function (c) { x[c] = obj[c] === undefined || obj[c] === null ? '' : obj[c]; });
   if (rows) rows.push(x);
 }
