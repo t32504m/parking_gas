@@ -309,7 +309,9 @@ function book_(req, channel, operator) {
     }
     row['状態'] = ST.CONFIRMED;
     var out = resultOf_(row);
-    out.spaces = spaces;
+    // 区画番号（91〜93）は管理者の台帳上の番号で、住民の画面には出さない（運用確認 2026-11-12）。
+    // 画面（ONLINE）の応答には載せない（F12のネットワーク応答にも出ないようにする）。電話・窓口の管理者経路だけ従来どおり返す（管理者の画面が使う）
+    if (channel !== CHANNELS.ONLINE) out.spaces = spaces;
     return out;
   });
 }
