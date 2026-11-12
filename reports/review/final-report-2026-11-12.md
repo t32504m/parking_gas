@@ -56,7 +56,7 @@
 ## 7. 次の実装担当（次世代LLM）への引き継ぎ
 
 - 作業キュー: `reports/review/proposals-for-implementation-2026-11-12.md`（P-1〜P-9。P-1〜P-4は試験で受け入れ可能な自走タスク、P-5〜P-7は人間判断待ち・着手禁止、P-8〜P-9は実機待ち）
-- 攻撃スクリプトの再実行手順: スクリプトは `C:\Users\kanar\Documents\deepseek-harness\default-workspace\pt-booking\`（リポジトリ外）。`HARNESS_REPORT_DIR`をリポジトリ外へ逃がして `node attackN.js`
+- 攻撃スクリプトの再実行手順: スクリプトは レビュー担当の手元のフォルダ（リポジトリ外）。`HARNESS_REPORT_DIR`をリポジトリ外へ逃がして `node attackN.js`
 - 実機のチェックリスト: REAL_TEST/REAL_ENV_CHECKLIST（T01〜T17。T09/T10でcost-model校正、T17でA-10/A-21/X-01）
 - 実装後の検証: 前提知識のないレビュー担当による再点検 + 全スイート（このレポートの§1手順1がそのまま基準）
 
