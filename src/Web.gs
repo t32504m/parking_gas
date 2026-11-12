@@ -123,7 +123,13 @@ function api_admin_login(q) {
       return denied_();
     }
     var token = Utilities.getUuid() + Utilities.getUuid();
-    CacheService.getScriptCache().put('adm:' + token, a.email + '|' + a.ver, ADMIN_TOKEN_TTL_SEC);
+    try {
+      CacheService.getScriptCache().put('adm:' + token, a.email + '|' + a.ver, ADMIN_TOKEN_TTL_SEC);
+    } catch (e) {
+      // 確認の印が保存できないとき、成功したように見せない（本物の GAS は best-effort で put が例外を出すことがある。D-041）
+      console.error('管理者の印の保存に失敗: ' + (e && e.message ? e.message : e));
+      return { status: 'ERROR', reason: 'SYSTEM', reasonText: REASON_TEXT.SYSTEM };
+    }
     return { status: 'OK', token: token, name: a.name };
   });
 }

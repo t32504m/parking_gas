@@ -18,14 +18,19 @@ function hashSecret_(salt, secret) {
 function normEmail_(e) { return String(e || '').trim().toLowerCase(); }
 
 /** 失敗回数が多い鍵（管理者のメール・予約番号）は一時的に止める（総当たり対策） */
+// CacheService は本物の GAS で best-effort（読込みは当たり前に退去、put は 120ms を超えると例外を出す。D-041）。
+// 数え上げができないとき、正しい管理者まで止めるほうが害が大きい（締出の精度低下は D-029・PT-B5 の人判断待ちと整合）。
 function tooManyFails_(key) {
-  var n = Number(CacheService.getScriptCache().get('fail:' + key) || 0);
+  var n;
+  try { n = Number(CacheService.getScriptCache().get('fail:' + key) || 0); } catch (e) { return false; }
   return n >= ADMIN_MAX_FAILS;
 }
 function countFail_(key) {
-  var c = CacheService.getScriptCache();
-  var n = Number(c.get('fail:' + key) || 0) + 1;
-  c.put('fail:' + key, String(n), 15 * 60);
+  try {
+    var c = CacheService.getScriptCache();
+    var n = Number(c.get('fail:' + key) || 0) + 1;
+    c.put('fail:' + key, String(n), 15 * 60);
+  } catch (e) { /* 失敗が数えられなくても、確かめること自体は止めない */ }
 }
 
 /**
@@ -52,12 +57,14 @@ function verifyAdmin_(email, secret) {
   email = normEmail_(email);
   secret = normSecret_(secret);
   if (!email || !secret) return null;
+  // 数え上げをユーザーロックの中で直列化する（D-041・PT-B4: CacheService の数え上げは原子ではなく、同時に送ると締出数を逃げられる）。
+  // 予約登録と同じスクリプトロックではないので、ログインが登録の待ち時間を発生させないという D-029 の意図は変わらない
   return limited_(email, function () {
     var a = admins_()[email];
     // 知らないメールでも同じだけ計算する（時間の差で、管理者のメールかどうかを知られないため）
     var h = hashSecret_(a ? a.salt : 'unknown', secret);
     return a && h === a.hash ? adminInfo_(email, a) : null;
-  });
+  }, LockService.getUserLock());
 }
 
 /** ver：パスコードの版。トークンに入れ、パスコードを替えたら前のトークンを使えなくする（D-028） */
@@ -67,7 +74,9 @@ function adminInfo_(email, a) { return { email: email, name: a.name, label: a.na
 function adminOf_(auth) {
   if (!auth || typeof auth !== 'object') return null;
   if (typeof auth.token === 'string' && auth.token) {
-    var t = String(CacheService.getScriptCache().get('adm:' + auth.token) || ''), i = t.lastIndexOf('|');
+    var t = '';
+    try { t = String(CacheService.getScriptCache().get('adm:' + auth.token) || ''); } catch (e) { /* 読めないときは、切れと同じ扱い（画面は再確認へ戻る） */ }
+    var i = t.lastIndexOf('|');
     var email = t.slice(0, i), a = i > 0 ? admins_()[email] : null;
     return a && adminInfo_(email, a).ver === t.slice(i + 1) ? adminInfo_(email, a) : null;
   }
