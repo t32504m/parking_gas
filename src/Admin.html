@@ -90,7 +90,7 @@
           } else {
             $('lg-out').innerHTML = r && r.reason === 'LOCKED'
               ? App.note('ng', 'しばらく確認できません', '（' + (r.reasonText || '15分後に試してください') + '）')
-              : App.note('ng', '確認できませんでした', 'メールアドレスかパスコードが違います。5回続けて間違えると15分止まります。');
+              : App.note('ng', '確認できませんでした', 'メールアドレスかパスコードが違います。' + (r && r.lockout ? '5回続けて間違えると15分止まります。' : ''));
           }
         }, function () { $('lg-go').disabled = false; $('lg-out').innerHTML = App.note('wait', '通信がつながりませんでした', ''); });
       };

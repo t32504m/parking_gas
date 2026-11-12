@@ -57,14 +57,18 @@ function verifyAdmin_(email, secret) {
   email = normEmail_(email);
   secret = normSecret_(secret);
   if (!email || !secret) return null;
-  // 数え上げをユーザーロックの中で直列化する（D-041・PT-B4: CacheService の数え上げは原子ではなく、同時に送ると締出数を逃げられる）。
-  // 予約登録と同じスクリプトロックではないので、ログインが登録の待ち時間を発生させないという D-029 の意図は変わらない
-  return limited_(email, function () {
+  var check = function () {
     var a = admins_()[email];
     // 知らないメールでも同じだけ計算する（時間の差で、管理者のメールかどうかを知られないため）
     var h = hashSecret_(a ? a.salt : 'unknown', secret);
     return a && h === a.hash ? adminInfo_(email, a) : null;
-  }, LockService.getUserLock());
+  };
+  // 締め出し（同じメールで5回間違えたら15分止める）は、依頼者の決定で停止している。
+  // 設定 adminLockout が true のときだけ、数えて止める（D-044）。停止中はロックも取らない
+  if (!ruleOn_('adminLockout')) return check();
+  // 数え上げをユーザーロックの中で直列化する（D-041・PT-B4: CacheService の数え上げは原子ではなく、同時に送ると締出数を逃げられる）。
+  // 予約登録と同じスクリプトロックではないので、ログインが登録の待ち時間を発生させないという D-029 の意図は変わらない
+  return limited_(email, check, LockService.getUserLock());
 }
 
 /** ver：パスコードの版。トークンに入れ、パスコードを替えたら前のトークンを使えなくする（D-028） */

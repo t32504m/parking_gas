@@ -100,18 +100,40 @@ test('[UI-09] 資格のない人が管理者画面を開いても、台帳の情
   for (const r of ACTORS.residents.slice(0, 6)) assert.ok(!text2.includes(r.name.split(' ')[0]));
 });
 
-test('[UI-09] パスコードの前後の空白は無視され、5回続けて間違えると「しばらく確認できません」と分かる', async (t) => {
+/** 締め出し（5回で15分）を入れ直す：スクリプトプロパティ RULES の adminLockout を true にする（D-044） */
+function lockoutOn(host) {
+  const rules = JSON.parse(host.props.script.get('RULES') || '{}');
+  host.setScriptProperties({ RULES: JSON.stringify({ ...rules, adminLockout: true }) });
+}
+
+test('[UI-09] 締め出しを入れたとき（adminLockout: true）：パスコードの前後の空白は無視され、5回続けて間違えると「しばらく確認できません」と分かる', async (t) => {
   const ui = await openApp({ as: 'anonymous', device: 'iPhone SE' });
   t.after(() => ui.close());
+  lockoutOn(ui.app.host);
   await ui.page.goto(ui.app.adminUrl);
   await ui.waitIdle();
   const f = ui.frame();
   await login(ui, ` ${ACTORS.admin.secret}\n`, ACTORS.admin.email);
   await f.locator('#board .cell').first().waitFor();
   await f.getByRole('button', { name: '管理を終える' }).click();
-  for (let i = 0; i < 5; i++) await login(ui, 'wrong-passcode', ACTORS.admin2.email);
+  await login(ui, 'wrong-passcode', ACTORS.admin2.email);
+  await f.getByText('5回続けて間違えると15分止まります').waitFor();
+  for (let i = 1; i < 5; i++) await login(ui, 'wrong-passcode', ACTORS.admin2.email);
   await login(ui, ACTORS.admin2.secret, ACTORS.admin2.email);
   await f.getByText('しばらく確認できません').waitFor();
+});
+
+test('[UI-09] 既定（締め出しは停止）：5回続けて間違えた後でも、正しいパスコードで入れる。止まるとは書かない', async (t) => {
+  const ui = await openApp({ as: 'anonymous', device: 'iPhone SE' });
+  t.after(() => ui.close());
+  await ui.page.goto(ui.app.adminUrl);
+  await ui.waitIdle();
+  const f = ui.frame();
+  for (let i = 0; i < 6; i++) await login(ui, 'wrong-passcode', ACTORS.admin2.email);
+  await f.getByText('確認できませんでした').waitFor();
+  assert.ok(!(await f.locator('body').innerText()).includes('15分'), '止めていないのに「15分止まります」と出る');
+  await login(ui, ACTORS.admin2.secret, ACTORS.admin2.email);
+  await f.locator('#board .cell').first().waitFor();
 });
 
 test('[UI-10][A-07] 電話連絡が必要な件数が常に見え、一覧で連絡済みにできる', async (t) => {

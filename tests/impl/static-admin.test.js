@@ -149,8 +149,15 @@ test('[S-UI-09] 外の画面：資格のない人が管理者画面を開いて�
   } finally { await closeAll(browser, s); }
 });
 
-test('[S-UI-09] 外の画面：パスコードの前後の空白は無視され、5回続けて間違えると「しばらく確認できません」と分かる', async () => {
+/** 締め出し（5回で15分）を入れ直す：スクリプトプロパティ RULES の adminLockout を true にする（D-044） */
+function lockoutOn(host) {
+  const rules = JSON.parse(host.props.script.get('RULES') || '{}');
+  host.setScriptProperties({ RULES: JSON.stringify({ ...rules, adminLockout: true }) });
+}
+
+test('[S-UI-09] 外の画面：締め出しを入れたとき（adminLockout: true）、パスコードの前後の空白は無視され、5回続けて間違えると「しばらく確認できません」と分かる', async () => {
   const s = await startStatic({});
+  lockoutOn(s.app.host);
   const browser = await chromium.launch();
   try {
     const { page } = await open(s, browser, PHONE);
@@ -158,9 +165,25 @@ test('[S-UI-09] 外の画面：パスコードの前後の空白は無視され�
     await login(page, s.admin.email, ` ${s.admin.secret}\n`);
     await page.waitForSelector('#board .cell', { timeout: 15000 });
     await page.getByRole('button', { name: '管理を終える' }).click();
-    for (let i = 0; i < 5; i++) await login(page, s.admin.email, 'wrong-passcode');
+    await login(page, s.admin.email, 'wrong-passcode');
+    await page.getByText('5回続けて間違えると15分止まります').waitFor();
+    for (let i = 1; i < 5; i++) await login(page, s.admin.email, 'wrong-passcode');
     await login(page, s.admin.email, s.admin.secret);
     await page.getByText('しばらく確認できません').waitFor();
+  } finally { await closeAll(browser, s); }
+});
+
+test('[S-UI-09] 外の画面：既定（締め出しは停止）では、5回続けて間違えた後でも正しいパスコードで入れる', async () => {
+  const s = await startStatic({});
+  const browser = await chromium.launch();
+  try {
+    const { page } = await open(s, browser, PHONE);
+    await page.waitForSelector('#lg-email', { timeout: 15000 });
+    for (let i = 0; i < 6; i++) await login(page, s.admin.email, 'wrong-passcode');
+    await page.getByText('確認できませんでした').waitFor();
+    assert.ok(!(await page.locator('body').innerText()).includes('15分'), '止めていないのに「15分止まります」と出る');
+    await login(page, s.admin.email, s.admin.secret);
+    await page.waitForSelector('#board .cell', { timeout: 15000 });
   } finally { await closeAll(browser, s); }
 });
 

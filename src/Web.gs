@@ -119,8 +119,10 @@ function api_admin_login(q) {
   return guard_(function () {
     var a = verifyAdmin_(q && q.email, q && q.secret);
     if (!a) {
-      if (q && tooManyFails_(normEmail_(q.email))) return { status: 'DENIED', reason: 'LOCKED', reasonText: '間違いが続いたため、15分間は確認できません。時間をおいてから、もう一度お試しください' };
-      return denied_();
+      if (q && ruleOn_('adminLockout') && tooManyFails_(normEmail_(q.email))) return { status: 'DENIED', reason: 'LOCKED', reasonText: '間違いが続いたため、15分間は確認できません。時間をおいてから、もう一度お試しください' };
+      var d = denied_();
+      d.lockout = ruleOn_('adminLockout'); // 画面が「5回続けて間違えると15分止まります」を出すかどうか（D-044）
+      return d;
     }
     var token = Utilities.getUuid() + Utilities.getUuid();
     try {
