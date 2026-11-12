@@ -173,8 +173,8 @@ test('[S-231] doPost の管理者の関数は、正しい印で google.script.ru
   });
 });
 
-test('[S-232] doPost のログインでも、5回続けて間違えると15分止まる（直接の呼び出しと回数を共にする）', async (t) => {
-  await withSpec(t, async (env) => {
+test('[S-232] 締め出しを入れた設定（adminLockout: true）では、doPost のログインでも5回続けて間違えると15分止まる（直接の呼び出しと回数を共にする）', async (t) => {
+  await withSpec(t, { rules: { adminLockout: true } }, async (env) => {
     for (let i = 0; i < 3; i++) assert.notEqual((await callArgs(env, 'api_admin_login', [{ email: ADMIN.email, secret: `bad-${i}-xxxx` }])).status, 'OK');
     for (let i = 3; i < 5; i++) assert.notEqual((await env.pub('api_admin_login', { email: ADMIN.email, secret: `bad-${i}-xxxx` })).status, 'OK');
     const r = await loginPost(env);
@@ -187,6 +187,20 @@ test('[S-232] doPost のログインでも、5回続けて間違えると15分�
     assert.equal((await loginPost(env, ADMIN2)).status, 'OK', '別の管理者まで止まった');
     env.host.advanceClock(15 * 60 * 1000 + 1000);
     assert.equal((await loginPost(env)).status, 'OK');
+  });
+});
+
+test('[S-235] 既定（締め出しを止めた設定）では、doPost と直接で合わせて何回間違えても止まらず、正しいパスコードで入れる', async (t) => {
+  await withSpec(t, async (env) => {
+    for (let i = 0; i < 4; i++) assert.notEqual((await callArgs(env, 'api_admin_login', [{ email: ADMIN.email, secret: `bad-${i}-xxxx` }])).status, 'OK');
+    for (let i = 4; i < 8; i++) assert.notEqual((await env.pub('api_admin_login', { email: ADMIN.email, secret: `bad-${i}-xxxx` })).status, 'OK');
+    const r = await loginPost(env);
+    assert.equal(r.status, 'OK', `間違えた後に doPost で入れない: ${JSON.stringify(r)}`);
+    assert.ok(r.token);
+    const l = await callArgs(env, 'api_admin_list', [{ token: r.token }, { from: D, to: D }]);
+    assert.equal(l.status, 'OK');
+    // 間違えたパスコードと偽の印は、止めない設定でも DENIED のまま（S-230 と同じ）
+    assert.equal((await callArgs(env, 'api_admin_list', [{ email: ADMIN.email, secret: 'wrong-pass-0000' }, { from: D, to: D }])).status, 'DENIED');
   });
 });
 

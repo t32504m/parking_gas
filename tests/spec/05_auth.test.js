@@ -84,8 +84,9 @@ test('[S-062] 正しいメールとパスコードで確認でき、確認の印
   });
 });
 
-test('[S-063] 5回続けて間違えると15分止まる。その間は正しいパスコードでも入れない', async (t) => {
-  await withSpec(t, async (env) => {
+// D-044（依頼者の決定）：締め出しは設定 RULES.adminLockout で入れる（既定 false＝止めない）。S-063 は true の環境で、今までの決まりを確かめる
+test('[S-063] 締め出しを入れた設定（adminLockout: true）では、5回続けて間違えると15分止まる。その間は正しいパスコードでも入れない', async (t) => {
+  await withSpec(t, { rules: { adminLockout: true } }, async (env) => {
     for (let i = 0; i < 5; i++) assert.notEqual((await env.pub('api_admin_login', { email: ADMIN.email, secret: `bad-${i}-xxxx` })).status, 'OK');
     const r = await env.pub('api_admin_login', { email: ADMIN.email, secret: ADMIN.secret });
     assert.notEqual(r.status, 'OK', '止まっている間に正しいパスコードで入れた');
@@ -97,6 +98,30 @@ test('[S-063] 5回続けて間違えると15分止まる。その間は正しい
     env.host.advanceClock(15 * 60 * 1000 + 1000);
     assert.equal((await env.pub('api_admin_login', { email: ADMIN.email, secret: ADMIN.secret })).status, 'OK');
   });
+});
+
+test('[S-234] 既定（締め出しを止めた設定）では、何回間違えても止まらず、その後に正しいパスコードで入れる', async (t) => {
+  for (const opts of [{}, { rules: { adminLockout: false } }]) {
+    await withSpec(t, opts, async (env) => {
+      for (let i = 0; i < 12; i++) {
+        const bad = await env.pub('api_admin_login', { email: ADMIN.email, secret: `bad-${i}-xxxx` });
+        assert.notEqual(bad.status, 'OK', `間違えたパスコードで入れた（${i + 1}回目）`);
+        assert.ok(!bad.token, '間違えたパスコードで印が返った');
+        assert.notEqual(bad.reason, 'LOCKED', `${i + 1}回目で止まった（${JSON.stringify(opts)}）`);
+      }
+      const ok = await env.pub('api_admin_login', { email: ADMIN.email, secret: ADMIN.secret });
+      assert.equal(ok.status, 'OK', `間違えた後に正しいパスコードで入れない: ${JSON.stringify(ok)}`);
+      assert.ok(ok.token);
+      // パスコードを付けた関数の呼び出しも通り、印でも操作できる
+      assert.equal((await env.admin('api_admin_list', { from: D, to: D })).status, 'OK');
+      assert.equal(env.val(await env.raw('api_admin_list', [{ token: ok.token }, { from: D, to: D }])).status, 'OK');
+      // 止めない設定でも、間違えたパスコードは間違いのまま（入れない）
+      assert.notEqual((await env.admin('api_admin_list', { from: D, to: D }, { email: ADMIN.email, secret: 'wrong-pass-0000' })).status, 'OK');
+      // 15分たたなくても、続けて間違えた後にまた入れる
+      for (let i = 0; i < 6; i++) await env.pub('api_admin_login', { email: ADMIN.email, secret: `again-${i}-xxxx` });
+      assert.equal((await env.pub('api_admin_login', { email: ADMIN.email, secret: ADMIN.secret })).status, 'OK');
+    });
+  }
 });
 
 test('[S-064] パスコードの前後の空白・改行は無視する', async (t) => {
