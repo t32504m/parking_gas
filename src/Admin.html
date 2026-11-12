@@ -571,8 +571,8 @@
       if (c.step === 'form') {
         var tg = function (attr, v, text, on) { return '<button type="button" class="btn" ' + attr + '="' + v + '" aria-pressed="' + on + '">' + text + '</button>'; };
         return App.head('使用禁止にする') + '<form id="bf" novalidate>'
-          + '<div class="two dates"><div class="f"><label for="b-from">開始日</label><input class="in" id="b-from" type="date" min="' + TODAY + '" value="' + c.from + '"></div>'
-          + '<div class="f"><label for="b-to">終了日</label><input class="in" id="b-to" type="date" min="' + TODAY + '" value="' + c.to + '"></div></div>'
+          + '<div class="two dates"><div class="f"><label for="b-from">開始日</label><input class="in" id="b-from" type="date" min="' + TODAY + '" value="' + esc(c.from) + '"></div>'
+          + '<div class="f"><label for="b-to">終了日</label><input class="in" id="b-to" type="date" min="' + TODAY + '" value="' + esc(c.to) + '"></div></div>'
           + '<div class="f"><span class="lbl" id="bs-lbl">時間帯</span><div class="row wrap" role="group" aria-labelledby="bs-lbl">'
           + tg('data-ball', 's', '終日', c.slots.length === IDS.length) + IDS.map(function (x) { return tg('data-bs', x, SLOT_LABEL[x], c.slots.length !== IDS.length && c.slots.indexOf(x) >= 0); }).join('') + '</div></div>'
           + '<div class="f"><span class="lbl" id="bp-lbl">駐車場</span><div class="row wrap" role="group" aria-labelledby="bp-lbl">'
